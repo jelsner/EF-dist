@@ -1,0 +1,534 @@
+---
+title: 'GFDI Seminar Notes: Bayesian Models in R'
+output: html_document
+---
+
+### Geography at FSU
+
+* College of Social Science and Public Policy
+* [Department of Geography](http://geography.fsu.edu)
+* 12 Regular faculty (5 tenured)
+* 200 Undergraduates (3/4 Environment & Society, 1/4 Geography); 40 MS, 34 PhD
+* Annual research expenditure: $1.5 million
+
+### R/RStudio & packages
+
+R markdown integrates text with code; R markdown -> HTML.
+
+Packages are available here: http://xcelab.net/rm/software/
+```{r}
+# install.packages(c('devtools', 'coda', 'mvtnorm', 'loo'))
+# devtools::install_github("rmcelreath/rethinking")
+#OR
+#install.packages(c('coda', 'mvtnorm', 'loo'))
+#options(repos=c(getOption('repos'), rethinking='http://xcelab.net/R'))
+#install.packages('rethinking', type = 'source')
+#install.packages('brm')
+```
+
+### A language for describing regression models
+
+We start with a language for describing regression models (McElreath, 2016) that more and more researchers are using. The grammar is laid out in five steps.
+
+1. First we recognize a set of measurements that we hope to predict or learn about, the *outcome* (response) variable.
+2. Next we choose a likelihood distribution that defines the plausibility of individual observations of the variable. In regression that likelihood is always Gaussian.
+3. Then we recognize a set of other measurements (*predictor*) to be used to learn about the outcome.
+4. We relate the shape of the likelihood distribution (e.g., mean) to the predictor variable.
+5. Finally, we choose priors for the model parameters that define the initial information state of the model before seeing the data.
+
+An example of the grammar using statistical notation is
+$$
+\begin{aligned}
+\hbox{outcome}_i &\sim \hbox{Normal}(\mu_i, \sigma) \\
+\mu_i &= \beta \times \hbox{predictor}_i \\
+\beta &\sim \hbox{Normal}(0, 10) \\
+\sigma &\sim \hbox{HalfCauchy}(0, 1) \\
+\end{aligned}
+$$
+
+We don't actually manipulate the grammar but it provides a clear way to define our model. We can think of it as a directed graph. All statistical models can be described this way.
+
+### A model for human height
+
+Let's see how this works by building a linear regression model. First we identify a set of height measurements that we hope to predict or understand. This is our outcome variable.
+
+The data in `Howell1` are partial census data for the Dobe area !Kung San, compiled from interviews conducted by anthropologist Nancy Howell in the late 1960s.
+
+Load the data and place them in a conveniently named object.
+```{r}
+suppressPackageStartupMessages(library(rethinking))
+data(Howell1)
+df = Howell1
+```
+
+We now have a *data frame* named `df`. We use this name because it saves typing and reminds us of the kind of data structure we have.
+
+A *data frame* is a special kind of object in R. It is a table with named columns, corresponding to variables, and numbered rows, corresponding to individual cases (like a simple spreadsheet).
+
+In this example the cases are individuals. Inspect the data frame.
+```{r}
+str(df)
+```
+
+It contains four columns. Each has 544 entries, so there are 544 individuals in these data. Each individual has a recorded height (centimeters), weight (kilograms), age (years) and "maleness" (0 indicating female and 1 indicating male).
+
+For now we will work only with the `height` column. It is just a vector of values. You can access the vector by using its name:
+```{r, eval=FALSE}
+df$height
+```
+
+Read the symbol `$` as *extract*, as in *extract* the *column named* `height` *from the data frame* `df`.
+
+Actually all we want are heights of adults in the sample. The reason to reason to remove children for now is that height is strongly correlated with age, before adulthood. Later we can add age to our model to handle this.
+```{r}
+df2 = df[df$age >= 18, ]
+```
+
+#### Likelihood
+
+We will be working with `df2` now. It should have 352 rows (individuals) in it. Our goal is to model `df2$height` using a Gaussian distribution (step two). First, plot the distribution of heights with:
+```{r}
+rethinking::dens(df2$height)
+```
+
+These data look rather Gaussian in shape, as is typical of heights. This may be because height is a sum of many small growth factors.
+
+So exactly what Gaussian distribution? There are an infinite number of different means and standard deviations.
+
+We write down the general model as:
+$$
+h_i \sim \hbox{Normal}(\mu, \sigma)
+$$
+
+The symbol $h_i$ refers to the list of heights, and the subscript $i$ means *each individual element of this list*. The model says that all we know about each height is defined by the same normal distribution, with mean $\mu$ and standard deviation $\sigma$. 
+
+This is sometimes described as assuming that the values $h_i$ are *independent and identically distributed* abbreviated iid. In the Bayesian context we use the word *exchangeability* although the concepts are not exactly the same.
+
+### Prior
+
+The parameters to be estimated are $\mu$ and $\sigma$ so we need the joint *prior* probability over the parameters.
+
+Why bother? Why not just stick with the likelihood? Because the likelihood only gives us the plausibility of the heights given the parameters. What we want is the probability of the parameters given the heights. Why?
+
+In most cases, priors are specified independently, which amounts to the assumption that the joint probability is the product of the marginals [Pr($\mu$, $\sigma$) = Pr($\mu$) $\times$ Pr($\sigma$)]. Then we can write:
+$$
+\begin{aligned}
+h_i &\sim \hbox{Normal}(\mu, \sigma) \\
+\mu &\sim \hbox{Normal}(180, 20) \\
+\sigma &\sim \hbox{Uniform}(0, 50) \\
+\end{aligned}
+$$
+
+The first line is the likelihood for the height variable the next two lines are the prior for $\mu$ and the the prior for $\sigma$.
+
+The prior for $\mu$ is a broad Gaussian, centered on 180 cm with 95% of the probability between 180 $\pm$ 40.
+
+Why 180? That's my height and the range from 140 to 220 cm encompasses a huge range of plausible mean heights for human populations. So domain-specific information has gone into the prior. We know something about human heights and so we can set a reasonable and vague prior of this kind.
+
+Whatever we choose as our prior, it's a good idea to plot it so we have a sense of the assumptions it brings to the model. In this case:
+```{r}
+curve(dnorm(x, mean = 180, sd = 20), 
+      from = 100, to = 250, col = "green")
+```
+
+We can see that this prior carries some information but not a lot.
+
+The $\sigma$ prior is a truly flat prior, a uniform distribution, that functions just to constrain $\sigma$ to have a positive probability between zero and 50 cm.
+```{r}
+curve(dunif(x, min = 0, max = 50), 
+      from  = -10, to = 60, col = "green")
+```
+
+A standard deviation must be positive, so bounding it at zero makes sense. How should we pick the upper bound? Here a standard deviation of 50 cm implies that 95% of individuals heights lie within 100 cm of the average. That's a very large range.
+
+We didn't specify a prior distribution of heights directly (we specified a likelihood) but the $\mu$ and $\sigma$ we've chosen as parameters implies a prior distribution for the individual heights.
+
+We can see this by sampling from the prior as follows. Get 10,000 random values for `sample_mu` and for `sample_sigma`. Then generate 10,000 samples for `prior_h` using the individual values of `sample_mu` and `sample_sigma`. Save the samples in `prior_h`.
+```{r}
+sample_mu = rnorm(10000, mean = 180, sd = 20)
+sample_sigma = runif(10000, min = 0, max = 50)
+prior_h = rnorm(10000, mean = sample_mu, sd = sample_sigma)
+```
+
+Plot the density of the prior samples in green and the density of the measured heights in red.
+```{r}
+suppressMessages(library(ggplot2))
+ggplot(df2, aes(x = height)) +
+  geom_density(color = "red") +
+  geom_density(data = as.data.frame(prior_h), aes(x = prior_h), color = "green") +
+  theme_minimal()
+```
+
+The prior distribution is approximately bell-shaped with long tails. It is the expected distribution of heights, averaged over the prior. The distribution is not Gaussian but this is okay. It is not an empirical expectation (e.g., sample mean) but rather the distribution of relative plausibilities of different heights, before seeing the data.
+
+*Try it*. We can play with the numbers in the priors above to explore their effects on the prior probability of heights. Q: If we double the maximum value on sigma, what do we expect to see? A: Longer tails.
+```{r, eval=FALSE}
+sample_mu = rnorm(10000, mean = 180, sd = 20)
+sample_sigma = runif(10000, min = 0, max = 100)
+prior_h2 = rnorm(10000, mean = sample_mu, sd = sample_sigma)
+ggplot(df2, aes(x = height)) +
+  geom_density(color = "red") +
+  geom_density(data = as.data.frame(prior_h), aes(x = prior_h2), color = "green") +
+  theme_minimal()
+```
+
+### Posterior
+
+We've chosen a likelihood, the parameters to be estimated, and a prior for each parameter. A Bayesian model is a logical consequence of these assumptions. For every combination of data, likelihood, parameters, and prior there is a unique set of estimates known as the *posterior distribution*. 
+
+The posterior distribution follows directly from Bayes Theorem and it takes the form of the probability of the parameters conditional on the data.
+
+### Fitting the model with MAP
+
+The peak of the posterior distribution lies at the *MAP* (maximum posterior) estimate. The MAP estimate is the *mode* (most common value) of the posterior distribution. Determining MAP is like determining the maximum likelihood value, but it incorporates the prior distribution over the parameters.
+
+To use the `map` function in R, we provide a *formula*, a list of *data*, and a list of *start* values for the parameters. The formula defines the likelihood and prior.
+
+The engine inside `map` uses the definitions in the *formula* to define the posterior probability at each combination of the parameter values. We can say that it *fits* the Bayesian model to the data.
+
+The model above is defined using R's formula syntax and placed into an `alist`, saved here as an object we call `flist`:
+```{r}
+flist = alist(
+  height ~ dnorm(mu, sigma),
+  mu ~ dnorm(180, 20),
+  sigma ~ dunif(0, 50)
+)
+```
+
+Note the commas at the end of each line, except the last. These commas separate each line of the model definition. The model contains the likelihood for `height` and the priors for `mu` and `sigma`.
+
+Fit the model to the data in the data frame `df2` with:
+```{r}
+model1 = map(flist, 
+             data = df2)
+```
+
+We now have a model in the object `model1`. The function `precis` from the **rethinking** package displays parameter estimate information from model that was fit using `map`.
+```{r}
+precis(model1,
+       prob = .95)
+```
+
+These numbers provide Gaussian approximations for each parameter's *marginal* distribution. 
+
+This means the plausibility of $\mu$ after averaging over the plausibilities of each value of $\sigma$ is given by a Gaussian distribution with mean 154.6 and standard deviation .41. The plausibility of $\sigma$ after averaging over the plausibilities of each value of $\mu$ is given by a Gaussian distribution with mean 7.73 and standard deviation of .29.
+
+The 95% credible intervals are also given. They are interpreted as the shortest interval containing 95% of the mass of the posterior density (highest posterior density interval--HPDI).
+
+Congrats if this is your first Bayesian model.
+
+The priors we use are very weak because they are nearly flat and because there is so much data. Let's see what happens when we use more informative priors for $\mu$. Change the standard deviation on $\mu$ to .1 and repeat. Here we do it all in one code chunk (specify the model as an `alist`, use `map` to fit the model and use `precis` to get the posterior estimates.
+```{r}
+model2 = map(
+  alist(
+    height ~ dnorm(mu, sigma),
+    mu ~ dnorm(180, .1),
+    sigma ~ dunif(0, 50)
+  ),
+  data = df2)
+precis(model2, 
+       prob = .95)
+```
+
+Now notice that the estimate for $\mu$ has hardly moved off the prior estimate. The prior was very concentrated around 180. So this is not surprising. But also notice that the estimate for $\sigma$ has changed a lot, even though we didn't change its prior at all.
+
+Once our model is certain that the mean is near 180 cm---as our prior insists (based on very small sd)---then the model must estimate $\sigma$ conditional on this fact. This results in a different posterior for $\sigma$, even though all we changed is prior information about $\mu$.
+
+#### Sampling from a `map` fit
+
+The quadratic approximation to a posterior distribution with more than one parameter is a multi-dimensional Gaussian distribution. When R constructs the approximation it calculates standard deviations for all parameters and covariances among all pairs of parameters. To see these use:
+```{r}
+cov2cor(vcov(model1))
+```
+
+A parameter's correlation with itself is one. The other entrees are typically closer to zero, and they are very close in this case indicating that learning $\mu$ tells us nothing about $\sigma$ and vice-versa. This is typical of Gaussian models of this kind.
+
+So samples from the posterior come from sampling this multi-dimensional Gaussian distribution. This is done with the `extract.samples` function from the **rethinking** package. Here we save 10,000 samples from the posterior in `post`.
+```{r}
+post = extract.samples(model1, 
+                       n = 10000)
+head(post)
+```
+
+The output `post` is a data frame containing 10,000 rows and two columns (one for $\mu$ and one for $\sigma$). Each value is a sample from the posterior, so the mean and standard deviation of each column will be very close to the MAP values above. We can confirm this by summarizing the samples:
+```{r}
+precis(post, 
+       prob = .95)
+```
+
+The 95% HPDI is shown. `|0.95` means the lower boundary and `0.95|` means the upper boundary. Compare these to the table above.
+
+We simulate samples of heights from the posterior with `sim` (more about this in a moment) and plot the density of the posterior samples on top of the data and prior densities.
+```{r, warning=FALSE}
+post_h = data.frame(ht = as.vector(sim(model1)))
+ggplot(df2, aes(x = height)) +
+  geom_density(color = "red") +
+  geom_density(data = as.data.frame(prior_h), aes(x = prior_h), color = "green") +
+  geom_density(data = post_h, aes(x = ht), color = "black") +
+  scale_x_continuous(limits = c(100, 250)) +
+  theme_minimal()
+```
+
+With 352 measurements and a relatively flat prior over the range of measurements, the posterior distribution looks like the data density. 
+
+But with the posterior samples we can assess the probability that the next adult from this area we meet will be shorter than 158 cm (~5.2 ft).
+```{r}
+sum(post_h$ht < 158)/length(post_h$ht) * 100
+```
+
+Suppose we only had ten measurements?
+```{r, echo=FALSE, warning=FALSE}
+modelX = map(flist, data = df2[1:10,], start = list(mu = 180, sigma = 10))
+post2_h = data.frame(ht = as.vector(sim(modelX)))
+ggplot(df2[1:10, ], aes(x = height)) +
+  geom_density(color = "red") +
+  geom_density(data = as.data.frame(prior_h), aes(x = prior_h), color = "green") +
+  geom_density(data = post2_h, aes(x = ht), color = "black") +
+  scale_x_continuous(limits = c(100, 250)) +
+  theme_minimal()
+```
+
+Now the posterior is shifted slightly toward the prior. Not by much because the prior is so vague.
+
+Suppose we're more insistent about our prior. Or we consider the evidence (data) as `fake news`.
+```{r, echo=FALSE, warning=FALSE}
+flist = alist(
+  height ~ dnorm(mu, sigma),
+  mu ~ dnorm(180, .1),
+  sigma ~ dunif(0, 50)
+)
+modelX = map(flist, data = df2, start = list(mu = 180, sigma = 10))
+sim.ht.df = data.frame(sim.ht = as.vector(sim(modelX)))
+ggplot(df2, aes(x = height)) +
+  geom_density(color = "red") +
+  geom_density(data = as.data.frame(prior_h), aes(x = prior_h), color = "green") +
+  geom_density(data = sim.ht.df, aes(x = sim.ht), color = "black") +
+  scale_x_continuous(limits = c(100, 250)) +
+  theme_minimal()
+```
+
+The evidence does little to influence the posterior.
+
+### Adding a predictor
+
+We are really interested in modeling how height is related to weight. Start with a scatter plot.
+```{r}
+ggplot(df2, aes(x = weight, y = height)) +
+  geom_point() +
+  theme_minimal()
+```
+
+There is an obvious relationship. Knowing a person's weight helps us predict height. To make this relationship more precise we need to modify our model above.
+
+#### The linear model strategy
+
+The strategy is to make the parameter for the mean of a Gaussian distribution ($\mu$) into a linear function of weight. Assumption: weight has a constant and additive relationship to the means of height.
+
+Some of the parameters now stand for the strength of association between the mean height and the value of weight. 
+
+Let $x$ be the name for the column of weight measurements, `df2$weight`. To get `weight` into the model in this way, we define the mean $\mu$ as a function of the values in $x$. This is what it looks like:
+$$
+\begin{aligned}
+h_i &\sim \hbox{Normal}(\mu_i, \sigma) \\
+\mu_i &= \alpha + \beta x_i \\
+\alpha &\sim \hbox{Normal}(180, 100) \\
+\beta &\sim \hbox{Normal}(0, 10) \\
+\sigma &\sim \hbox{Uniform}(0, 50) \\
+\end{aligned}
+$$
+
+The first line is the likelihood, but this time there is an index $i$ on the $\mu$ as well as on the $h$; $\mu$ now depends on predictor values in each row $i$.
+
+On the second line, mean $\mu$ is now constructed from new parameters $\alpha$ and $\beta$ and the predictor variable $x$. The construction defines a deterministic relationship so we use `=`. For probabilistic relationships we use `~`.
+
+The remaining lines define priors for the parameters to be estimated. All are weak priors leading to inferences that will echo inferences made with a non-Bayesian model.
+
+We place a Gaussian prior with mean zero on the $\beta$ prior. This is consistent with the hypothesis that there is no relationship between height and weight. It is also consistent with the hypothesis that it is equally likely that the relationship is upward as it is downward. We are interested in the relative plausibility of hypotheses not the likelihood of our data.
+
+#### Fitting the model
+
+The code from the earlier model is recycled. All we need to include is our new model for the mean. The model is specified as an `alist` and fit to the data `df2` with the `map` function. Note that the deterministic relationship for `mu` is defined using the left-pointing arrow `<-` assignment operator.
+```{r}
+model3 = map(
+  alist(
+    height ~ dnorm(mu, sigma),
+    mu <- alpha + beta * weight,
+    alpha ~ dnorm(180, 100),
+    beta ~ dnorm(0, 10),
+    sigma ~ dunif(0, 50)
+  ),
+  data = df2)
+```
+
+The parameters are printed with the `precis` function. The correlations among parameters are output using the `corr = TRUE` argument.
+```{r}
+precis(model3, 
+       prob = .95,
+       corr = TRUE)
+```
+
+The second row gives the approximation for $\beta$. A value of .9 can be read as *a person 1 kg heavier is expected to be .9 cm taller**. 95% of the posterior probability lies between .82 and .99. That suggests that $\beta$ values close to zero or greater than one are highly incompatible with these data and this model.
+
+If we were thinking there was no relationship between height and weight then this estimate indicates strong evidence of a positive relationship instead. The particular value for the estimate is conditional on our data and our model.
+
+The $\alpha$ estimate is true but nonsensical. Someone without weight has a height of 114 cm. It is often difficult to interpret the intercept without studying the other parameters. It is also why we need very weak priors for intercepts.
+
+The estimate for $\sigma$ informs us of the width of the distribution of heights about the mean.
+
+The columns to the right of the upper bound on the credible interval are the between-between parameter correlations. Notice that $\alpha$ and $\beta$ are almost perfectly (negatively) correlated. It means the two parameters carry the same information---as we change the slope of the line, the best intercept changes to match it. With more complex models strong correlations like this can make it difficult to fit the model.
+
+There are some tricks to avoid these large across-parameter correlations. One is to center our predictor variables. Create a new variable in `df2` that is a centered version of `weight` by subtracting the mean from each row of the column `weight`.
+```{r}
+df2$weight.c = df2$weight - mean(df2$weight)
+```
+
+Now let's refit the model using `weight.c` rather than `weight` in the relationship for `mu`.
+```{r}
+model4 = map(
+  alist(
+    height ~ dnorm(mu, sigma),
+    mu <- alpha + beta * weight.c,
+    alpha ~ dnorm(180, 100),
+    beta ~ dnorm(0, 10),
+    sigma ~ dunif(0, 50)
+  ),
+  data = df2, start = list(alpha = 180, beta = 0, sigma = 10))
+precis(model4, 
+       prob = .95, 
+       corr = TRUE)
+```
+
+The estimates for $\beta$ and $\sigma$ are unchanged (within rounding error), but the estimate for $\alpha$ (`alpha`) is now the same as the average height in the raw data. And the correlations among parameters are now all zero.
+
+The "intercept" $\alpha$ is interpreted as a "centercept": the expected value of the outcome when the predictor is at its average value.
+
+#### Plotting posterior inference against the data
+
+There is additional information in the posterior distribution. With this model it is simple to superimpose the MAP on the scatter plot of height and weight.
+```{r}
+ggplot(df2, aes(x = weight, y = height)) +
+  geom_point() +
+  geom_abline(intercept = coef(model3)["alpha"],
+              slope = coef(model3)["beta"]) +
+  theme_minimal()
+```
+
+The MAP line is just the posterior mean, most plausible line in the infinite universe of lines the posterior distribution has considered. But there is no real uncertainty on this line. 
+
+To appreciate how the posterior distribution contains lines, extract some samples from the model:
+```{r}
+post = extract.samples(model3)
+head(post)
+```
+
+Each row is a correlated random sample from the joint posterior of all three parameters. The paired values in each row define a line. The average of very many lines is the MAP line. But the scatter around the average is meaningful because it alters our confidence in the relationship between the predictor and the outcome.
+
+We use the following code to create a series of regression lines on the scatter plot.
+```{r}
+N = 20
+post = extract.samples(model3, n = N)
+
+ggplot(df2, aes(x = weight, y = height)) +
+  geom_abline(data = post, 
+              aes(intercept = alpha, slope = beta),
+              color = "grey") +
+    geom_point() +
+  theme_minimal()
+```
+
+We use the following code to create a marginal density of the mean height given a weight of 50 kg.
+```{r}
+post = extract.samples(model3, n = 10000)
+mu_at_50 = post$alpha + post$beta * 50
+ggplot(as.data.frame(mu_at_50), aes(mu_at_50)) +
+  geom_density() +
+  xlab("mu | weight = 50") +
+  theme_minimal()
+```
+
+Since the components of $\mu$ have distributions, so to does $\mu$. And since the distributions of $\alpha$ and $\beta$ are Gaussian so to is the distribution of $\mu$ (adding Gaussians always produces Gaussians).
+
+To find the 95% highest posterior density interval for $\mu$ at 50 kg, we just use the `HPDI` function.
+```{r}
+HPDI(mu_at_50, 
+     prob = .95)
+```
+
+The central 95% of the ways for the model to produce the data puts the average height of someone weighing 50 kg between 158.5 and 159.8 cm (conditional on the model and data).
+
+#### Posterior predictions
+
+The Gaussian distribution on the first line tells us that the model expects observed heights to be distributed around $\mu$, not right on top of it. And the spread about $\mu$ is governed by $\sigma$. Thus we need to incorporate $\sigma$ in the predictions.
+
+The function `sim` generates samples of `height`. It extracts samples of `alpha` and `beta`, then combines them to get `mu`, which combined with `sigma` simulates heights. Then the `apply` function is used with the `PI` function to compute the 95% posterior prediction intervals about each observed height. 
+```{r}
+post_ht = sim(model3)
+height.PI = apply(post_ht, 2, PI, prob = .95)
+height.PI[, 1:7]
+df2$height[1:7]
+```
+
+Here we compare the intervals about the measured heights.
+
+Posterior predictions provide a rigorous way to check if the model is specified correctly. For example the prediction intervals should include all but about 5% of the measurements.
+```{r}
+(sum(df2$height < height.PI[1,]) + sum(df2$height > height.PI[2,]))/length(df2$height) * 100
+```
+
+### Markov chain Monte Carlo
+
+The posterior probability distributions can also be estimated using a procedure known as Markov chain Monte Carlo (MCMC) estimation. With MCMC we are able to sample directly from the posterior without assuming a certain curvature. The cost of this power is that it takes longer to estimate.
+
+Tools for building and inspecting MCMC estimates are getting better. The Gibbs sampler, made popular by *WinBUGS*, is a common MCMC algorithm. *WinBUGS* (Windows Bayesian Updating Using Gibbs Sampling) is stand-alone software but it can be called from R through the **R2WinBUGS** package (among others). Another stand-alone is *JAGS* (Just Another Gibbs Sampler) that can be called from R using the **rjags**.
+
+A more directed sampling approach is Hamiltonian Monte Carlo (HMC), which is available with *Stan*. *Stan* uses C++ and can be called from R using the **rstan** package. *Stan* comes with its own programming language. *Stan* implements HMC. The limitation is that every model needs to be written, debugged, and optimized making it intimidating for the newcomer.
+
+Install the latest version of **rstan** and the packages from CRAN exactly like this:
+```{r, eval=FALSE}
+install.packages("rstan", repos = "https://cloud.r-project.org/", 
+                 dependencies = TRUE)
+```
+
+Note: omit the 's' in 'https' if your system can't handle https downloads
+
+Check how many cores your processor has and let *Stan* use them in parallel.
+```{r}
+library("rstan")
+options(mc.cores = parallel::detectCores())
+```
+
+Returning to our simple regression model, here the posterior is sampled using HMC through *Stan*. The only difference is that we replace `map` with `map2stan` in the model fitting procedure. This takes about a minute.
+```{r, warning=FALSE, results='hide'}
+df3 = df2[, 1:2]
+model5 = map2stan(
+  alist(
+    height ~ dnorm(mu, sigma),
+    mu <- alpha + beta * weight,
+    alpha ~ dnorm(180, 20),
+    beta ~ dnorm(0, 10),
+    sigma ~ dunif(0, 50)
+  ),
+  data = df3,
+  start = list(alpha = 180, beta = 0, sigma = 10))
+```
+
+```{r}
+precis(model5,
+       prob = .95)
+```
+
+The model fit and the output are similar. The summary statistics are based on the samples from the posterior distribution and the uncertainty bounds are based on the HPDI. `n_eff` is an estimate of the effective number of samples and `Rhat` is 1 when the samples in the chain have reached a stable distribution (sufficiently mixed).
+
+The *Stan* code is available by typing
+```{r}
+model5@stanfit@stanmodel
+```
+
+*Stan* code has three required chunks; `data`, `parameters`, and `model`. Additional variables for diagnostics are put in `generated quantities`.
+
+The code looks similar to the code in the `alist` but additional specifications are required. A useful strategy for building a *Stan* model might be to get a simpler version of it working using the **rethinking** package, save the *Stan* code, then modify the code as needed. Information on accessing the contents of a [`stanfit` object](https://cran.r-project.org/web/packages/rstan/vignettes/stanfit-objects.html).
+
+### Examples from tornado climatology
+
+* A Model for Insured Property Losses from Tornadoes
+* [Statistical Models for Tornado Climatology](https://speakerdeck.com/jelsner)

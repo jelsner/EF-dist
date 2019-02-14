@@ -9,7 +9,7 @@ editor_options:
 
 This work uses the outbreak data collated from the tor-cluster project.
 
-Set working directory and load packages.
+Load packages.
 ```{r}
 library(sf)
 library(tmap)
@@ -17,3 +17,7 @@ library(dplyr)
 library(ggplot2)
 ```
 
+Load the **rethinking** package.
+```{r}
+devtools::install_github("rmcelreath/rethinking")
+```
