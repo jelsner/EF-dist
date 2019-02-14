@@ -1,0 +1,19 @@
+---
+title: "Predicting the Distribution of Tornadoes By Max EF Rating"
+author: "James Elsner"
+date: "2/14/2019"
+output: github_notebook
+editor_options:
+  chunk_output_type: console
+---
+
+This work uses the outbreak data collated from the tor-cluster project.
+
+Set working directory and load packages.
+```{r}
+library(sf)
+library(tmap)
+library(dplyr)
+library(ggplot2)
+```
+
