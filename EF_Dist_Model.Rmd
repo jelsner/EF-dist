@@ -1,5 +1,5 @@
 ---
-title: "Predicting the Distribution of Tornadoes By Max EF Rating"
+title: "Predicting the Frequency of Tornadoes By EF Rating on Big Outbreak Days"
 author: "James Elsner"
 date: "2/14/2019"
 output: github_notebook
@@ -7,7 +7,7 @@ editor_options:
   chunk_output_type: console
 ---
 
-This work uses the outbreak data collated from the tor-cluster project.
+This work uses the outbreak data collated in the tor-cluster project.
 
 Load packages.
 ```{r}
@@ -20,4 +20,5 @@ library(ggplot2)
 Load the **rethinking** package.
 ```{r}
 devtools::install_github("rmcelreath/rethinking")
+library(rethinking)
 ```
