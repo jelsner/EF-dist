@@ -6,6 +6,11 @@ output: github_notebook
 editor_options:
   chunk_output_type: console
 ---
+Abstract for European SLS conference
+
+We develop a statistical model to predict the frequency of tornadoes by EF rating on days expected to produce an outbreak. The model uses demographic information to account for the fact that damage ratings are related to the number and type of damage targets. In this way we quantify the importance of this information relative to environmental factors including CAPE and bulk shear. For example, given high values of CAPE and bulk shear the model quantifies the percentage increase in the chance of finding EF3 damage for an percentage increase in the number of tragets. The model is an ordered logistic regression and the model coefficients are determined using the method of Hamiltonian Monte Carlo within the Stan language.
+
+McElreath Lecture 14. Ordered logistic regression to predict the probability distributions of tornado counts by EF rating. With population as a predictor we will be able to see how population shifts the distributions for example from EF0 to EF1 from EF1 to EF2. We know that the chance of getting an EF5 tornado in the data set increases with the number of structures. What we don't know is by how much relative to an EF3 or EF4.
 
 This work uses the outbreak data collated in the tor-cluster project.
 
