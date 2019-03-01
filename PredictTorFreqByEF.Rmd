@@ -1,5 +1,5 @@
 ---
-title: "Predicting the Frequency of Tornadoes By EF Rating on Big Outbreak Days"
+title: "Predicting the probability distribution of tornado counts by EF rating"
 author: "James Elsner"
 date: "2/14/2019"
 output: github_notebook
@@ -8,9 +8,13 @@ editor_options:
 ---
 Abstract for European SLS conference
 
-We develop a statistical model to predict the frequency of tornadoes by EF rating on days expected to produce an outbreak. The model uses demographic information to account for the fact that damage ratings are related to the number and type of damage targets. In this way we quantify the importance of this information relative to environmental factors including CAPE and bulk shear. For example, given high values of CAPE and bulk shear the model quantifies the percentage increase in the chance of finding EF3 damage for an percentage increase in the number of tragets. The model is an ordered logistic regression and the model coefficients are determined using the method of Hamiltonian Monte Carlo within the Stan language.
+Predicting the probability distribution of tornado counts by EF rating
 
-McElreath Lecture 14. Ordered logistic regression to predict the probability distributions of tornado counts by EF rating. With population as a predictor we will be able to see how population shifts the distributions for example from EF0 to EF1 from EF1 to EF2. We know that the chance of getting an EF5 tornado in the data set increases with the number of structures. What we don't know is by how much relative to an EF3 or EF4.
+Elsner/Schroder
+
+We develop a statistical model to predict the probability distribution of tornado counts by EF rating on days expected to produce an outbreak. The model is fit using demographic data to condition on the fact that damage ratings are related to the number (and type) of damage targets. The model quantifies the importance of these data relative to information on the environmental factors known to influence tornadoes, including CAPE and bulk shear. For example, given high values of CAPE and bulk shear the model quantifies the percent increase in the chance of at least one tornado being rated EF3 with a one percent increase in the number of targets. The model is an ordered logistic regression and the coefficients are determined using the method of Hamiltonian Monte Carlo within the Stan language.
+
+Ordered logistic regression to predict the probability distributions of tornado counts by EF rating. With population as a predictor we will be able to see how population shifts the distributions for example from EF0 to EF1 from EF1 to EF2. We know that the chance of getting an EF5 tornado in the data set increases with the number of structures. What we don't know is by how much relative to an EF3 or EF4.
 
 This work uses the outbreak data collated in the tor-cluster project.
 
@@ -22,8 +26,195 @@ library(dplyr)
 library(ggplot2)
 ```
 
+Load the data.
+```{r}
+load("~/Desktop/Projects/EF-dist/BigDays.RData")
+```
+
+McElreath Lecture 14. Chapter 12 of his rethinking book.
+
 Load the **rethinking** package.
 ```{r}
 devtools::install_github("rmcelreath/rethinking")
 library(rethinking)
+```
+
+
+### Describing the ordered distribution of maximum EF ratings with intercepts
+
+Histogram of maximum EF rating per tornado.
+```{r}
+d <- as.data.frame(BigDayTornadoes) %>%
+  mutate(maxEF = as.integer(mag)) %>%
+  select(groupNumber, ED, maxEF)
+
+ggplot(d, aes(maxEF)) + 
+  geom_bar(fill = "gray") +
+  scale_x_continuous(breaks = 0:5) +
+  xlab("Maximum EF Rating") +
+  theme_minimal()
+```
+
+Our goal is to re-describe this histogram on the log-cumulative-odds scale. This means constructing the odds of a cumulative probability and then taking a logarithm. The logit is log-odds. The cumulative logit is log-cumulative-odds. Both constrain the probabilities to the 0/1 interval. When we add predictor variables, we can safely do so on the cumulative logit scale. The link function takes care of converting the parameter estimates to the proper probability scale.
+
+We first compute the cumulative probabilities from the histogram. The discrete proportion of each EF ranking.
+```{r}
+pr_k <- as.vector(table(d$maxEF) / nrow(d))
+cum_pr_k <- cumsum(pr_k)
+
+plot.df <- data.frame(maxEF = 0:5, pr_k, cum_pr_k)
+
+ggplot(plot.df, aes(x = maxEF, y = cum_pr_k)) +
+  geom_point() +
+  geom_line() +
+  scale_y_continuous(limits = c(0, 1)) +
+    xlab("Maximum EF Rating") +
+    ylab("Cumulative Proportion") +
+  theme_minimal()
+```
+
+Then to re-describe the histogram as log-cumulative odds, we need a series of intercept parameters. Each intercept will be on the log-cumulative-odds scale and stand in for the cumulative probability of each rating.
+$$
+\log \frac{\Pr(y_i \le k)}{1 - \Pr(y_i \le k)} = \alpha_k
+$$
+where $\alpha_k$ is an 'intercept' unique to each possible EF rating $k$. 
+
+We compute these intercept parameters directly.
+```{r}
+( lco <- logit(cum_pr_k) )
+
+plot.df$lco <- lco
+
+ggplot(plot.df[1:5, ], aes(x = maxEF, y = lco)) +
+  geom_point() +
+  geom_line() +
+  scale_y_continuous() +
+  xlab("Maximum EF Rating") +
+  ylab("log-cumulative-odds") +
+  theme_minimal()
+```
+
+Note that the cumulative logit for the highest EF rating is infinity. This is because log(1/(1 - 1)) = $\infty$. This is always the case so we do not need a parameter for it. We get it for free from the law of total probability. So for $K$ = 6 possible maximum EF ratings we only need $K$ - 1 = 5 intercepts.
+
+What we really want is the prior distribution of these intercepts. This allows us to take into account sample size and prior information, as well as insert predictor variables.
+
+To use Bayes' theorem to comput the posterior distribution of these intercepts, we will need to compute the likelihood for each possible EF rating. So the last step in constructing the basic model fitting engine for these ordered categorical outcomes is to use cumulative probabilities $\Pr(y_i \le k)$ to compute the likelihood $\Pr(y_i = k)$.
+
+```{r}
+plot.df$ys <-  plot.df$cum_pr_k - plot.df$pr_k
+
+ggplot(plot.df, aes(x = maxEF, y = cum_pr_k)) +
+  geom_point() +
+  geom_line() +
+  geom_segment(aes(x = maxEF, xend = maxEF, y = ys, yend = cum_pr_k), size = 2, color = "blue") +
+  scale_y_continuous(limits = c(0, 1)) +
+    xlab("Maximum EF Rating") +
+    ylab("Cumulative Proportion") +
+  theme_minimal()
+```
+
+Cumulative probability and ordered likelihood. The horizontal axis displays possible observable damage ratings, from 0 through 5. The vertical axis displays cumulative probability. The points show cumulative probability. These keep getting higher with each successive EF rating. The blue line segments show the discrete probability of each EF rating. These are the likelihoods that go into Bayes’ theorem.
+
+In code form
+$$
+\begin{aligned}
+\hbox{R}_i &\sim \hbox{Ordered(\mathbf{p}) \\ 
+\logit(p_k) &= \alpha_k \\
+\alpha_k &\sim \hbox{Normal}(0, 10) \\
+\end{aligned}
+$$
+
+The Ordered distribution is a categorical distribution that takes a vector $p = \{p_0, p_1, p_2, p_3, p_4\}$ of probabilities for each EF rating below the highest (EF5). Each response value $k$ in this vector is defined by its link to an intercept parameter ($\alpha_k$). 
+
+Finally, some weakly regularizing priors are placed on these intercepts. In this case, there is a lot of data so just about any prior will be overwhelmed.
+
+In code form. Note we can't use zero as a category so we add 1 to `maxEF`.
+```{r}
+d$maxEF1 <- d$maxEF + 1
+m1.1 <- map(
+  alist(
+    maxEF1 ~ dordlogit( phi, c(a0, a1, a2, a3, a4) ),
+    phi <- 0,
+    c(a0, a1, a2, a3, a4) <- dnorm(0, 10)
+  ) ,
+  data = d ,
+  start = list(a0 = -1, a1 = 0, a2 = 1, a3 = 2, a4 = 3)
+)
+```
+
+The model returns the same values as those in `cum_pr_k`.
+```{r}
+logistic(coef(m1.1))
+```
+
+Using Stan's HMC engine.
+```{r}
+m1.1stan <- map2stan(
+    alist(
+        maxEF1 ~ dordlogit( phi , cutpoints ),
+        phi <- 0,
+        cutpoints ~ dnorm(0, 10)
+),
+data = list(maxEF1 = d$maxEF1), 
+start = list(cutpoints=c(-2, -1, 0, 2, 3)), 
+chains = 2 , cores=2 )
+```
+
+```{r}
+# need depth=2 to show vector of parameters
+precis(m1.1stan, depth = 2)
+```
+
+The individual `cutpoints` parameters correspond to each $\alpha_k$ from earlier.
+
+### Adding a predictor variable
+
+To include predictor variables, we define the log-cumulative-odds of each EF rating $k$ as a sum of its intercept $\alpha_k$ and a typical linear model. Suppose for  example we want to add a predictor $x$ to the model. We do this by defining a linear model $\phi_i = \beta x_i$. Then each cumulative logit becomes
+$$
+\begin{aligned}
+\log \frac{\Pr(y_i \le k)}{1 - \Pr(y_i \le k)} &= \alpha_k - \phi_i \\
+\phi_i &= \beta x_i
+\end{aligned}
+$$
+
+The form automatically ensures the correct ordering of the EF ratings, while still morphing the likelihood of each individual value as the predictor $x_i$ changes value. Why is the linear model $\phi$ subtracted from each intercept? Because if we decrease the log-cumulative odds of every outcome value $k$ below the maximum, this necessarily shifts the probability mass upwards towards higher outcome values. Recall quantile regression.
+
+For example, suppose we take the MAP estimates from `m1.1` and subtract .5 from each. The function `dordlogit()` makes the calculation of likelihoods straitforward.
+```{r}
+( pk <- dordlogit(1:5, 0, coef(m1.1)) )
+```
+
+These probabilities imply an average outcome value of
+```{r}
+sum(pk * (1:5))
+```
+
+And now subtracting .5 from each
+```{r}
+pk <- dordlogit(1:5, 0, coef(m1.1) - .5)
+sum(pk * (1:5))
+```
+
+The expected value has increased to 2.0.
+
+And that is why we subtract $\phi$, the linear model $\beta x_i$ from each intercept. This way a positive $\beta$ value indicates that an increase in the predictor variable $x$ results in an increase in the average response.
+
+Create a new predictor variable.
+```{r}
+d$logEDs <- scale(log(d$ED))
+d$Yrs <- scale(BigDayTornadoes$Year)
+```
+
+We fit this model by adding the slope and predictor variable to the `phi` parameter inside `dordlogit()` function.
+```{r}
+m1.2 <- map(
+  alist(
+    maxEF1 ~ dordlogit( phi, c(a0, a1, a2, a3, a4) ),
+    phi <- bYr * Yrs,
+    bED ~ dnorm(0, 10),
+    c(a0, a1, a2, a3, a4) <- dnorm(0, 10)
+  ) ,
+  data = d ,
+  start = list(a0 = -1, a1 = 0, a2 = 1, a3 = 2, a4 = 3)
+)
 ```
