@@ -9,6 +9,7 @@ editor_options:
 Abstract for European SLS conference
 
 Abstract Deadline: April 24, 2019
+Submission link: https://meetings.copernicus.org/ecss2019/abstract_management/
 
 Predicting tornado count distributions by EF rating
 
