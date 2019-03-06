@@ -8,6 +8,8 @@ editor_options:
 ---
 Abstract for European SLS conference
 
+Abstract Deadline: April 24, 2019
+
 Predicting tornado count distributions by EF rating
 
 Elsner/Schroder
