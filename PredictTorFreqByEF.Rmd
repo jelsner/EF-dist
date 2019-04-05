@@ -375,12 +375,14 @@ ggplot(tpk.df, aes(x = X, y = EF0, group = S)) +
 
 Area plots.
 ```{r}
-p <- post.df[1, ]
+#p <- post.df[1, ]
+p <- colMeans(post.df)
+
 ak <- as.numeric(p[1:5])
-phi <- p$bS * BSs[1]
+phi <- p[10] * BSs[1]
 dk1 <- dordlogit( 1:5 , a = ak , phi = phi )
 
-phi <- p$bS * BSs[2]
+phi <- p[10] * BSs[2]
 dk2 <- dordlogit( 1:5 , a = ak , phi = phi )
 
 dk <- c(dk1, dk2)
@@ -448,12 +450,13 @@ ggplot(tpk.df, aes(x = X, y = EF0, group = S)) +
 
 Area plots.
 ```{r}
-p <- post.df[1, ]
+#p <- post.df[1, ]
+p <- colMeans(post.df)
 ak <- as.numeric(p[1:5])
-phi <-  p$bS * BSs + p$bDis * dists[1]
+phi <-  p[10] * BSs + p[7] * dists[1]
 dk1 <- dordlogit( 1:5 , a = ak , phi = phi )
 
-phi <- p$bS * BSs + p$bDis * dists[2]
+phi <- p[10] * BSs + p[7] * dists[2]
 dk2 <- dordlogit( 1:5 , a = ak , phi = phi )
 
 dk <- c(dk1, dk2)
@@ -463,10 +466,10 @@ tpk.df <- data.frame(dk,
                      EF = factor(rep(c("0", "1", "2", "3", "4"), times = 2), 
                                  levels = c("4", "3", "2", "1", "0")))
 
-ggplot(tpk.df, aes(x = Dc, y = dk)) + 
+ggplot(tpk.df, aes(x = Dc/1000, y = dk)) + 
   geom_area(aes(fill = EF), color = "white") +
   scale_fill_brewer(type = "seq", direction = -1) +
-  xlab("Distance from city (m)") + ylab("Cumulative Proportion") +
+  xlab("Distance from nearest city/town (km)") + ylab("Cumulative Proportion") +
   theme_minimal() +
   ggtitle(label = "Predicted proportion of tornadoes by EF category") 
 
