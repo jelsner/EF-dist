@@ -1,5 +1,5 @@
 ---
-title: "Predicting tornado count distributions by EF rating"
+title: "Forecasting tornado count distributions by EF damage rating"
 author: "James Elsner"
 date: "2/14/2019"
 output: github_notebook
@@ -15,11 +15,9 @@ Predicting tornado count distributions by EF rating
 
 Elsner/Schroder
 
-The science of forecasting where and when an outbreak of severe convective weather might occur is well developed. But more work is needed to anticipate specific characteristics of the outbreaks. Here we develop a statistical model that can be used to predict the probability distribution of tornado counts by EF rating on days expected to produce an outbreak of tornadoes in the United States. The model is fit using demographic data to condition on the fact that damage ratings are related to the number (and type) of damage targets. The model quantifies the importance of these data relative to data describing environmental factors known to influence tornadoes, including CAPE and bulk shear. As a test case, the model controls for distance to nearest city while quantifying the percent increase in the chance of at least one tornado rated EF3 or higher for a unit increase in CAPE and bulk shear. The model is an ordered logistic regression and the coefficients are determined using the method of Hamiltonian Monte Carlo with the Stan language. Stan code is generated from R through the 'rethinking' package. The flexibility of this approach allows easy modifications based on domain-specific knowledge.
+The science of forecasting where and when an outbreak of severe convective weather might occur is well developed. But more work is needed to anticipate specific characteristics of the outbreaks. Here we develop a statistical model that can be used to predict the probability distribution of tornado counts by EF rating on days expected to produce an outbreak of tornadoes in the United States. The model is fit using demographic data to condition on the fact that damage ratings are related to the number (and type) of potential targets. The model quantifies the importance of this demographic data relative to data describing environmental factors known to influence tornadoes, including CAPE and bulk shear. As a test case, the model controls for distance to nearest city while quantifying the percent increase in the chance of at least one tornado rated EF3 or higher for a unit increase in CAPE and bulk shear. The model is an ordered logistic regression and the coefficients are determined using the method of Hamiltonian Monte Carlo with the Stan language. Stan code is generated from R through the 'rethinking' package. The flexibility of this approach allows easy modifications based on domain-specific knowledge.
 
 Ordered logistic regression to predict the probability distributions of tornado counts by EF rating. With distance to nearest city as a predictor we will be able to see how population shifts the distributions for example from EF0 to EF1 from EF1 to EF2. We know that the chance of getting an EF5 tornado in the data set increases with the number of structures. What we don't know is by how much relative to an EF3 or EF4.
-
-This work uses the outbreak data collated in the tor-cluster project.
 
 Load packages.
 ```{r}
@@ -29,14 +27,76 @@ library(dplyr)
 library(ggplot2)
 ```
 
-Load the data.
+Load the data. This study uses the outbreak data collated in the tor-cluster GitHub project.
 ```{r}
 load("~/Desktop/Projects/EF-dist/BigDays.RData")
+st_crs(BigDayTornadoes)
+st_crs(BigDays.sfdfT)
 ```
 
 The simple feature `BigDays.sfdfT` contains outbreak-level data including environmental variables. The simple feature `BigDayTornadoes` contains tornado-level data. Note: they have different CRSs.
 
-We need to join the environmental variables at the outbreak-level to the tornado level.
+How many convective days have 10 or more tornadoes?
+```{r}
+All_Tornadoes %>%
+  group_by(cDate) %>%
+  summarize(nT = n()) %>%
+  filter(nT >= 10) %>%
+  dim()
+```
+
+Of these 870 big convective days we only consider 212 that occurred as part of a big outbreak.
+
+A map of a big tornado day.
+```{r}
+library(USAboundaries)
+ctys <- us_counties()
+sts1 <- us_states(states = c("IL", "IN", "KY", "MO", "KS",
+                            "OK", "AR", "TN", "MS", "TX"))
+sts <- us_states()
+
+groupNo <- 53
+
+BD <- BigDays.sfdfT %>%
+  filter(groupNumber == groupNo)
+BDt <- BigDayTornadoes %>%
+  filter(groupNumber == groupNo) %>%
+  mutate(magF = factor(mag, levels = 0:4))
+
+library(tmap)
+
+tm_shape(BD) +
+  tm_polygons() +
+tm_shape(sts1, is.master = TRUE) +
+  tm_borders() +
+tm_shape(sts) +
+  tm_borders(col = "gray70") +
+  tm_text("name", size = .6) +
+tm_shape(BDt) +
+  tm_dots(size = .5) +
+tm_compass(position = c("left", "bottom")) +
+tm_scale_bar(position = c("left", "bottom")) +
+tm_layout(title = "April 26, 1994")
+```
+
+Distribution of big convective days by month.
+```{r}
+ggplot(BigDays.sfdfT, aes(x = Month)) +
+  geom_bar(fill = "gray70") +
+  scale_x_discrete(labels = month.name) +
+  scale_y_continuous(limits = c(0, 60)) +
+  ylab("Number of Big Days") + xlab("") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplot(BigDays.sfdfT, aes(x = nT)) +
+  geom_histogram(fill = "gray70", binwidth = 5) +
+  scale_y_continuous(limits = c(0, NA)) +
+  ylab("Number of Big Days") + xlab("Number of Tornadoes") +
+  theme_minimal() 
+```
+
+We join the environmental variables at the outbreak-level to the data at the tornado level.
 ```{r}
 df <- as.data.frame(BigDays.sfdfT) %>%
   select(ID, maxCAPE, maxHLCY, minCIN, maxBS, maxSM) %>%
@@ -243,7 +303,7 @@ df2$BSs <- scale(df2$maxBS)
 df2$CINs <- scale(df2$minCIN)
 ```
 
-We fit this model by adding the slope and predictor variable to the `phi` parameter inside `dordlogit()` function.
+We fit this model by adding the slope parameters and predictor variables to the `phi` parameter inside `dordlogit()` function.
 ```{r}
 m1.2 <- map(
   alist(
@@ -266,7 +326,10 @@ Extract the posterior values of the parameters.
 post.df <- extract.samples(m1.2)
 ```
 
-Consider how the model handles bulk shear. Set all variables to zero except distance to city and bulk shear. The scale and center parameters of the bulk shear variable are obtained and then extremes values are used.
+
+#### Bulk shear
+
+Consider how the model handles bulk shear. Set all variables to zero except distance to city and bulk shear. Set the distance to city to a small value (near the city). The scale and center parameters of the bulk shear variable are obtained and then extremes values are used.
 ```{r}
 BSs <- scale(df2$maxBS)
 scale <- attr(BSs, "scaled:scale")
@@ -331,6 +394,79 @@ ggplot(tpk.df, aes(x = BS, y = dk)) +
   geom_area(aes(fill = EF), color = "white") +
   scale_fill_brewer(type = "seq", direction = -1) +
   xlab("Bulk Shear (m/s)") + ylab("Cumulative Proportion") +
+  theme_minimal() +
+  ggtitle(label = "Predicted proportion of tornadoes by EF category") 
+
+```
+
+#### Distance to city
+
+Consider how the model handles distance from city. Set all variables to zero except distance from city and bulk shear. Set bulk shear to a high value. The scale and center parameters of the bulk shear variable are obtained and then extremes values are used.
+```{r}
+dists <- scale(df2$dist)
+scale <- attr(dists, "scaled:scale")
+center <- attr(dists, "scaled:center")
+
+( Dclose <- (0 - center) / scale )
+( Dfar <- (100000 - center) / scale )
+```
+
+Line plots.
+```{r}
+dists <- c(Dclose, Dfar)
+Yrs <- 0
+CAPEs <- 0
+HLCYs <- 0
+BSs <- 2.2
+CINs <- 0
+
+tpk <- numeric()
+for ( s in 1:10 ) {
+    p <- post.df[s, ]
+    ak <- as.numeric(p[1:5])
+    phi <- p$bS * BSs + p$bDis * dists
+    pk <- pordlogit( 1:5 , a = ak , phi = phi )
+    tpk <- rbind(tpk, pk)
+}
+
+tpk.df <- as.data.frame(tpk)
+tpk.df$X <- rep(c(0, 100000), times = 10)
+tpk.df$S <- rep(1:10, each = 2)
+names(tpk.df) <- c("EF0", "EF1", "EF2", "EF3", "EF4", "X", "S")
+
+ggplot(tpk.df, aes(x = X, y = EF0, group = S)) +
+  geom_line(color = "#EFF3FF") +
+  geom_line(aes(y = EF1), color = "#BDD7E7") +
+  geom_line(aes(y = EF2), color = "#6BAED6") +
+  geom_line(aes(y = EF3), color = "#3182BD") +
+  geom_line(aes(y = EF4), color = "#08519C") +
+  scale_y_continuous(limits = c(0, 1)) +
+  scale_x_continuous() +
+  xlab("Distance from city (m)") + ylab("Cumulative Proportion") +
+  theme_minimal()
+```
+
+Area plots.
+```{r}
+p <- post.df[1, ]
+ak <- as.numeric(p[1:5])
+phi <-  p$bS * BSs + p$bDis * dists[1]
+dk1 <- dordlogit( 1:5 , a = ak , phi = phi )
+
+phi <- p$bS * BSs + p$bDis * dists[2]
+dk2 <- dordlogit( 1:5 , a = ak , phi = phi )
+
+dk <- c(dk1, dk2)
+
+tpk.df <- data.frame(dk,
+                     Dc = rep(c(0, 100000), each = 5),
+                     EF = factor(rep(c("0", "1", "2", "3", "4"), times = 2), 
+                                 levels = c("4", "3", "2", "1", "0")))
+
+ggplot(tpk.df, aes(x = Dc, y = dk)) + 
+  geom_area(aes(fill = EF), color = "white") +
+  scale_fill_brewer(type = "seq", direction = -1) +
+  xlab("Distance from city (m)") + ylab("Cumulative Proportion") +
   theme_minimal() +
   ggtitle(label = "Predicted proportion of tornadoes by EF category") 
 
