@@ -15,9 +15,17 @@ Predicting tornado count distributions by EF rating
 
 Elsner/Schroder
 
-The science of forecasting where and when an outbreak of severe convective weather might occur is well developed. But more work is needed to anticipate specific characteristics of the outbreaks. Here we develop a statistical model that can be used to predict the probability distribution of tornado counts by EF rating on days expected to produce an outbreak of tornadoes in the United States. The model is fit using demographic data to condition on the fact that damage ratings are related to the number (and type) of potential targets. The model quantifies the importance of this demographic data relative to data describing environmental factors known to influence tornadoes, including CAPE and bulk shear. As a test case, the model controls for distance to nearest city while quantifying the percent increase in the chance of at least one tornado rated EF3 or higher for a unit increase in CAPE and bulk shear. The model is an ordered logistic regression and the coefficients are determined using the method of Hamiltonian Monte Carlo with the Stan language. Stan code is generated from R through the 'rethinking' package. The flexibility of this approach allows easy modifications based on domain-specific knowledge.
+_Journal of Applied Meteorology and Climatology_
 
-Ordered logistic regression to predict the probability distributions of tornado counts by EF rating. With distance to nearest city as a predictor we will be able to see how population shifts the distributions for example from EF0 to EF1 from EF1 to EF2. We know that the chance of getting an EF5 tornado in the data set increases with the number of structures. What we don't know is by how much relative to an EF3 or EF4.
+The science of forecasting where and when an outbreak of severe convective weather might occur days in advance is well developed. But more work is needed to anticipate specific characteristics of the outbreaks. Here we develop a statistical model that can be used to predict the probability distribution of tornado counts by EF rating on days expected to produce an outbreak in the United States. The model is fit using demographic data to condition on the fact that damage ratings are related to the number (and type) of potential targets. The model quantifies the importance of this demographic data relative to data describing environmental factors known to influence tornadoes, including CAPE and bulk shear. The model controls for distance to nearest city to quantify the percent increase in the chance of at least one tornado rated EF3 or higher for a unit increase in CAPE and bulk shear. The model is an ordered logistic regression and the coefficients are determined using the method of Hamiltonian Monte Carlo with the Stan language. Stan code is generated from R through the 'rethinking' package. The flexibility of this approach makes it easy to change the model to forecast other outbreak characteristics and to include domain-specific knowledge.
+
+Motivation: Current lack of statistical guidance for forecasting outbreak characteristics. Is this true? Perhaps such tools can be used to better describe the threat and thus hopefully save lives.
+
+
+
+Ordered logistic regression to predict the probability distributions of tornado counts by EF rating. With distance to nearest city as a predictor we will be able to see how population shifts the distributions for example from EF0 to EF1 from EF1 to EF2. We know that the chance of getting an EF4+ tornado in the data set increases with the number of structures. What we don't know is by how much relative to an EF3.
+
+The study aims: (1) to show the feasibility of forecasting a particular outbreak characteristic, and (2) to demonstrate a flexible modeling framework that can be used to forecast other characteristics.
 
 Load packages.
 ```{r}
