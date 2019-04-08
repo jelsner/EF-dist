@@ -17,7 +17,7 @@ Elsner/Schroder
 
 _Journal of Applied Meteorology and Climatology_
 
-The science of forecasting where and when an outbreak of severe convective weather might occur days in advance is well developed. But more work is needed to anticipate specific characteristics of the outbreaks. Here we develop a statistical model that can be used to predict the probability distribution of tornado counts by EF rating on days expected to produce an outbreak in the United States. The model is fit using demographic data to condition on the fact that damage ratings are related to the number (and type) of potential targets. The model quantifies the importance of this demographic data relative to data describing environmental factors known to influence tornadoes, including CAPE and bulk shear. The model controls for distance to nearest city to quantify the percent increase in the chance of at least one tornado rated EF3 or higher for a unit increase in CAPE and bulk shear. The model is an ordered logistic regression and the coefficients are determined using the method of Hamiltonian Monte Carlo with the Stan language. Stan code is generated from R through the 'rethinking' package. The flexibility of this approach makes it easy to change the model to forecast other outbreak characteristics and to include domain-specific knowledge.
+The science of forecasting where and when an outbreak of severe convective weather might occur days in advance is well developed. But more work is needed to anticipate specific characteristics of the outbreaks. Here we develop a statistical model that can be used to predict the probability distribution of tornado counts by EF rating on days expected to produce an outbreak in the United States. The model is fit using demographic data to condition on the fact that damage ratings are related to the number (and type) of potential targets. The model quantifies the importance of demographic information relative to information from environmental factors known to influence tornadoes, including CAPE and bulk shear. The model controls for distance to nearest city to quantify the percent increase in the chance of at least one tornado rated EF3 or higher for a unit increase in CAPE and bulk shear. The model is an ordered logistic regression and the coefficients are determined using the method of Hamiltonian Monte Carlo with the Stan language. Stan code is generated from R through the 'rethinking' package. The flexibility of this approach makes it easy to change the model to forecast other outbreak characteristics and to include domain-specific knowledge.
 
 Motivation: Current lack of statistical guidance for forecasting outbreak characteristics. Is this true? Perhaps such tools can be used to better describe the threat and thus hopefully save lives.
 
@@ -35,7 +35,7 @@ library(dplyr)
 library(ggplot2)
 ```
 
-Load the data. This study uses the outbreak data collated in the tor-cluster GitHub project.
+Load the data. This study uses the outbreak data collated in the tor-cluster GitHub project. The methodology for determining the big outbreak days is detailed in Schroder and Elsner (2019). Briefly, the method groups space-time distances between tornado genesis over the period 1994 through 2017, inclusive. If two tornadoes occur close in space and time then they are grouped together. Grouping stops when the the space-time distance threshold exceeds 50K meter-seconds.
 ```{r}
 load("~/Desktop/Projects/EF-dist/BigDays.RData")
 st_crs(BigDayTornadoes)
