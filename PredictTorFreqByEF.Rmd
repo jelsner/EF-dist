@@ -6,7 +6,7 @@ output: github_notebook
 editor_options:
   chunk_output_type: console
 ---
-Abstract for European SLS conference
+Abstract for the European SLS conference in Krakow, POLAND, 4-8 November 2019.
 
 Abstract Deadline: April 24, 2019
 Submission link: https://meetings.copernicus.org/ecss2019/abstract_management/
@@ -17,15 +17,13 @@ Elsner/Schroder
 
 _Journal of Applied Meteorology and Climatology_
 
-The science of forecasting where and when an outbreak of severe convective weather might occur days in advance is well developed. But more work is needed to anticipate specific characteristics of the outbreaks. Here we develop a statistical model that can be used to predict the probability distribution of tornado counts by EF rating on days expected to produce an outbreak in the United States. The model is fit using demographic data to condition on the fact that damage ratings are related to the number (and type) of potential targets. The model quantifies the importance of demographic information relative to information from environmental factors known to influence tornadoes, including CAPE and bulk shear. The model controls for distance to nearest city to quantify the percent increase in the chance of at least one tornado rated EF3 or higher for a unit increase in CAPE and bulk shear. The model is an ordered logistic regression and the coefficients are determined using the method of Hamiltonian Monte Carlo with the Stan language. Stan code is generated from R through the 'rethinking' package. The flexibility of this approach makes it easy to change the model to forecast other outbreak characteristics and to include domain-specific knowledge.
+The science of forecasting where an outbreak of severe convective weather might occur days in advance is well developed. For example, considerable skill exists in outlining what regions of the United States have the largest risk of severe weather on any given day. But more work is needed to anticipate specific characteristics of the outbreaks. Here we develop a statistical model that can be used to predict the probability distribution of tornado counts by EF rating on days expected to produce an outbreak. The model is fit using demographic data to condition on the fact that damage ratings are related to the number (and type) of potential targets. The model quantifies the importance of demographic information relative to information from environmental factors known to influence tornadoes, including CAPE and bulk shear. The model controls for distance to nearest city to quantify the percent increase in the chance of at least one tornado rated EF3 or higher for a unit increase in CAPE and bulk shear. The model is an ordered logistic regression and the coefficients are determined using the method of Hamiltonian Monte Carlo with the Stan language. Stan code is generated from R through the 'rethinking' package. The flexibility of this approach makes it easy to adjust the model to forecast other outbreak characteristics and to include domain-specific knowledge.
 
 Motivation: Current lack of statistical guidance for forecasting outbreak characteristics. Is this true? Perhaps such tools can be used to better describe the threat and thus hopefully save lives.
 
-
-
 Ordered logistic regression to predict the probability distributions of tornado counts by EF rating. With distance to nearest city as a predictor we will be able to see how population shifts the distributions for example from EF0 to EF1 from EF1 to EF2. We know that the chance of getting an EF4+ tornado in the data set increases with the number of structures. What we don't know is by how much relative to an EF3.
 
-The study aims: (1) to show the feasibility of forecasting a particular outbreak characteristic, and (2) to demonstrate a flexible modeling framework that can be used to forecast other characteristics.
+The study aims to show: (1) the feasibility of forecasting a particular outbreak characteristic, and (2) a flexible modeling framework that can be used to forecast other characteristics.
 
 Load packages.
 ```{r}
@@ -35,7 +33,7 @@ library(dplyr)
 library(ggplot2)
 ```
 
-Load the data. This study uses the outbreak data collated in the tor-cluster GitHub project. The methodology for determining the big outbreak days is detailed in Schroder and Elsner (2019). Briefly, the method groups space-time distances between tornado genesis over the period 1994 through 2017, inclusive. If two tornadoes occur close in space and time then they are grouped together. Grouping stops when the the space-time distance threshold exceeds 50K meter-seconds.
+Load the data. The study uses the outbreak data collated in the `tor-cluster` GitHub project. The methodology for determining the big outbreak days is detailed in Schroder and Elsner (2019). Briefly, the method groups tornadoes occurring in the period 1994 through 2017 based on space-time distances between genesis locations. If two tornadoes occur close together in space and time, then they are grouped together. Grouping stops when the the space-time distance threshold exceeds 50K meter-seconds.
 ```{r}
 load("~/Desktop/Projects/EF-dist/BigDays.RData")
 st_crs(BigDayTornadoes)
@@ -104,7 +102,7 @@ ggplot(BigDays.sfdfT, aes(x = nT)) +
   theme_minimal() 
 ```
 
-We join the environmental variables at the outbreak-level to the data at the tornado level.
+We join the environmental variables at the outbreak-level with the data at the tornado level.
 ```{r}
 df <- as.data.frame(BigDays.sfdfT) %>%
   select(ID, maxCAPE, maxHLCY, minCIN, maxBS, maxSM) %>%
@@ -119,16 +117,32 @@ C.sf <- us_cities() %>%
   st_transform(crs = 102004)
 
 dist <- numeric()
-for(i in seq_len(nrow(BigDayTornadoes))) dist[i] <- min(st_distance(BigDayTornadoes[i, ], C.sf))
+for(i in seq_len(nrow(BigDayTornadoes))){
+  dist[i] <- min(st_distance(BigDayTornadoes[i, ], C.sf))
+}
 
 df$dist <- dist
-
-#closest <- list()
-#for(i in seq_len(nrow(BigDayTornadoes))){
-#    closest[[i]] <- C.sf[which.min(st_distance(C.sf, BigDayTornadoes[i, ])), ]
-#}
-
 ```
+
+Returns the closest cities as a data frame.
+```{r}
+closest.df <- numeric()
+ for(i in seq_len(nrow(BigDayTornadoes))){
+     closest.df <- rbind(closest.df, as.data.frame(C.sf[which.min(st_distance(C.sf, BigDayTornadoes[i, ])), ]))
+ }
+
+closest.df %>%
+  group_by(stplfips_2010) %>%
+  summarize(nT = n()) %>%
+  arrange(desc(nT))
+
+closest.df %>%
+  filter(stplfips_2010 == 2018250)
+```
+
+Dodge City KS (2010 population of 27,340) and Scott City KS (3,816) are the two cities with the most 'nearby' tornadoes.
+
+### Rethinking package
 
 McElreath Lecture 14. Chapter 12 of his rethinking book.
 
@@ -138,14 +152,13 @@ Load the **rethinking** package.
 library(rethinking)
 ```
 
-
 ### Describing the ordered distribution of maximum EF ratings with intercepts
 
-Histogram of maximum EF rating per tornado.
+We begin with a histogram of maximum EF rating per tornado.
 ```{r}
 df2 <- df %>%
   mutate(maxEF = as.integer(mag)) %>%
-  select(maxEF, dist, maxEF, Year, maxCAPE, maxHLCY, maxBS, minCIN)
+  select(ID, maxEF, dist, maxEF, Year, maxCAPE, maxHLCY, maxBS, minCIN)
 
 plot.df <- data.frame(table(df2$maxEF))
 names(plot.df) <- c("EF", "Frequency")
@@ -155,25 +168,35 @@ ggplot(plot.df, aes(x = EF, y = Frequency)) +
   geom_segment(aes(xend = EF, yend = 0)) +
   xlab("Maximum EF Rating") +
   theme_minimal()
+
+table(df2$maxEF)/dim(df2)[1]
+table(All_Tornadoes$mag)/dim(All_Tornadoes)[1]
 ```
 
-Our goal is to re-describe this histogram on the log-cumulative-odds scale. This means constructing the odds of a cumulative probability and then taking a logarithm. The logit is log-odds. The cumulative logit is log-cumulative-odds. Both constrain the probabilities to the 0/1 interval. When we add predictor variables, we can safely do so on the cumulative logit scale. The link function takes care of converting the parameter estimates to the proper probability scale.
+The histogram of tornadoes by EF rating on big outbreak days is as expected with the vast majority rated EF0 or EF1 and far fewer rated EF4 or EF5. But relative to all tornadoes the distribution favors higher ratings. For example 4.5\% of big outbreak day tornadoes are rated EF3 compared with 2.3\% of all tornadoes. And .1\% of big outbreak day tornadoes are rated EF5 compared with .04\% of all tornadoes. We re-describe this histogram on the log-cumulative-odds scale. This means constructing the odds of a cumulative probability and then taking a logarithm. The logit is log-odds. The cumulative logit is log-cumulative-odds. Both constrain the probabilities to the 0/1 interval. 
+
+When we add predictor variables, we can safely do so on the cumulative logit scale. The link function takes care of converting the parameter estimates to the proper probability scale.
 
 We first compute the cumulative probabilities from the histogram. The discrete proportion of each EF ranking.
 ```{r}
 pr_k <- as.vector(table(df2$maxEF) / nrow(df2))
+pr_k_all <- as.vector(table(All_Tornadoes$mag) / nrow(All_Tornadoes))
 cum_pr_k <- cumsum(pr_k)
+cum_pr_k_all <- cumsum(pr_k_all)
 
-plot.df <- data.frame(maxEF = 0:5, pr_k, cum_pr_k)
+plot.df <- data.frame(maxEF = 0:5, pr_k, cum_pr_k, cum_pr_k_all)
 
-ggplot(plot.df, aes(x = maxEF, y = cum_pr_k)) +
-  geom_point() +
-  geom_line() +
+ggplot(plot.df, aes(x = maxEF, y = cum_pr_k_all)) +
+  geom_point(color = "gray70") +
+  geom_line(color = "gray70") +
+  geom_point(aes(y = cum_pr_k)) +
+  geom_line(aes(y = cum_pr_k)) +
   scale_y_continuous(limits = c(0, 1)) +
     xlab("Maximum EF Rating") +
     ylab("Cumulative Proportion") +
   theme_minimal()
 ```
+**Cumulative proportion of tornadoes by maximum EF rating for all tornadoes (gray) and for tornadoes occurring on big days in big outbreaks (black)**
 
 Then to re-describe the histogram as log-cumulative odds, we need a series of intercept parameters. Each intercept will be on the log-cumulative-odds scale and stand in for the cumulative probability of each rating.
 $$
@@ -184,12 +207,16 @@ where $\alpha_k$ is an 'intercept' unique to each possible EF rating $k$.
 We compute these intercept parameters directly.
 ```{r}
 ( lco <- logit(cum_pr_k) )
+( lco_all <- logit(cum_pr_k_all) )
 
 plot.df$lco <- lco
+plot.df$lco_all <- lco_all
 
-ggplot(plot.df[1:5, ], aes(x = maxEF, y = lco)) +
-  geom_point() +
-  geom_line() +
+ggplot(plot.df[1:5, ], aes(x = maxEF, y = lco_all)) +
+  geom_point(color = "gray70") +
+  geom_line(color = "gray70") +
+  geom_point(aes(y = lco)) +
+  geom_line(aes(y = lco)) +
   scale_y_continuous() +
   xlab("Maximum EF Rating") +
   ylab("log-cumulative-odds") +
@@ -206,16 +233,16 @@ To use Bayes' theorem to compute the posterior distribution of these intercepts,
 plot.df$ys <-  plot.df$cum_pr_k - plot.df$pr_k
 
 ggplot(plot.df, aes(x = maxEF, y = cum_pr_k)) +
+  geom_segment(aes(x = maxEF, xend = maxEF, y = ys, yend = cum_pr_k), size = 1.3, color = "gray70") +
   geom_point() +
   geom_line() +
-  geom_segment(aes(x = maxEF, xend = maxEF, y = ys, yend = cum_pr_k), size = 2, color = "blue") +
   scale_y_continuous(limits = c(0, 1)) +
     xlab("Maximum EF Rating") +
     ylab("Cumulative Proportion") +
   theme_minimal()
 ```
 
-Cumulative probability and ordered likelihood. The horizontal axis displays possible observable damage ratings, from 0 through 5. The vertical axis displays cumulative probability. The points show cumulative probability. These keep getting higher with each successive EF rating. The blue line segments show the discrete probability of each EF rating. These are the likelihoods that go into Bayes’ theorem.
+Cumulative probability and ordered likelihood. The horizontal axis displays possible observable damage ratings, from 0 through 5. The vertical axis displays cumulative probability. The points show cumulative probability. These keep getting higher with each successive EF rating. The gray line segments show the discrete probability of each EF rating. These are the likelihoods that go into Bayes’ theorem.
 
 In code form
 $$
@@ -311,20 +338,31 @@ df2$BSs <- scale(df2$maxBS)
 df2$CINs <- scale(df2$minCIN)
 ```
 
-We fit this model by adding the slope parameters and predictor variables to the `phi` parameter inside `dordlogit()` function.
+We fit this model by adding the slope parameters and predictor variables to the `phi` parameter inside `dordlogit()` function. Note this model ignores the group level effect of the outbreaks.
 ```{r}
 m1.2 <- map(
   alist(
     maxEF1 ~ dordlogit( phi, c(a0, a1, a2, a3, a4) ),
     phi <- bYr * Yrs + bDis * dists + bCA * CAPEs + bH * HLCYs + bS * BSs + bCI * CINs,
+    a[id] ~ dnorm(0, 1.5),
     bYr ~ dnorm(0, 10),
     bDis ~ dnorm(0, 10),
+    bCA ~ dnorm(0, 10),
+    bH ~ dnorm(0, 10),
+    bS ~ dnorm(0, 10),
+    bCI ~ dnorm(0, 10),
+#    bI ~ dnorm(0, 10),
     c(a0, a1, a2, a3, a4) <- dnorm(0, 10)
   ) ,
   data = df2 ,
   start = list(a0 = -1, a1 = 0, a2 = 1, a3 = 2, a4 = 3, 
                bYr = 0, bDis = 0, bCA = 0, bH = 0, bS = 0, bCI = 0)
 )
+```
+
+Model summary.
+```{r}
+summary(m1.2)
 ```
 
 ### Plot the posterior predictions
@@ -482,3 +520,36 @@ ggplot(tpk.df, aes(x = Dc/1000, y = dk)) +
   ggtitle(label = "Predicted proportion of tornadoes by EF category") 
 
 ```
+
+### Random effect variable. 
+
+Cluster number.
+```{r}
+nT <- as.vector(table(df2$ID))
+id <- rep(1:length(nT), times = nT)
+df2$id <- id
+```
+
+If you're using rstan or have access to R, I'd suggest loading the brms package. Then create your model something like:
+```{r}
+library(brms)
+
+formula <- maxEF1 ~ Yrs + dists + CAPEs + HLCYs + BSs + CINs  + (1|id)
+family <- brms::cumulative(threshold = "flexible")
+
+get_prior(formula, data = df2, family = family)
+
+m1.3 <- brm(formula = formula,
+            data = df2,
+            family = family,
+            prior = c(set_prior("normal(0,5)", class = "b"),
+                    set_prior("student_t(3, 0, 10)", class = "Intercept"),
+                    set_prior("student_t(3, 0, 10)", class = "sd")),
+             seed = 9112)
+
+out <- predict(m1.3, probs = c(0, 1))
+
+stancode(m1.3)
+```
+
+
