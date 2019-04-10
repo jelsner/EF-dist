@@ -620,8 +620,23 @@ Marginal plots.
 ```{r}
 gg <- marginal_effects(m1.3, categorical = TRUE)
 ggBS <- gg[[5]]
+levels(ggBS$cats__) <- c("0", "1", "2", "3", "4", "5")
 
-ggplot(ggBS, aes(x = BSs, y = estimate__, col = cats__)) +
-  geom_line() 
+BSs <- scale(df2$maxBS)
+scale <- attr(BSs, "scaled:scale")
+center <- attr(BSs, "scaled:center")
+
+ggBS <- ggBS %>%
+  mutate(BS = BSs * scale + center)
+
+ggplot(ggBS, aes(x = BS, y = estimate__, col = cats__)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = lower__, ymax = upper__, fill = cats__), 
+              alpha = .7, col = NA) +
+  scale_color_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Blues") +
+  scale_fill_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Blues") +
+  ylab("Relative Chance of a Tornado\nCausing EF-level Damage") +
+  xlab("Bulk Shear (m/s)") +
+  theme_minimal()
 ```
 
