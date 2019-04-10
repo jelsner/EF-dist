@@ -17,7 +17,7 @@ Elsner/Schroder
 
 _Journal of Applied Meteorology and Climatology_
 
-The science of forecasting where an outbreak of severe convective weather might occur days in advance is well developed. For example, considerable skill exists in outlining what regions of the United States have the largest risk of severe weather on any given day. But more work is needed to anticipate specific characteristics of the outbreaks. Here we develop a statistical model that can be used to predict the probability distribution of tornado counts by EF rating on days expected to produce an outbreak. The model is fit using demographic data to condition on the fact that damage ratings are related to the number (and type) of potential targets. The model quantifies the importance of demographic information relative to information from environmental factors known to influence tornadoes, including CAPE and bulk shear. The model controls for distance to nearest city to quantify the percent increase in the chance of at least one tornado rated EF3 or higher for a unit increase in CAPE and bulk shear. The model is an ordered logistic regression and the coefficients are determined using the method of Hamiltonian Monte Carlo with the Stan language. Stan code is generated from R through the 'rethinking' package. The flexibility of this approach makes it easy to adjust the model to forecast other outbreak characteristics and to include domain-specific knowledge.
+The science of forecasting where an outbreak of severe convective weather might occur days in advance is well developed. For example, considerable skill exists in outlining what regions of the United States have the highest risk of severe weather on any given day. But more work is needed to anticipate specific characteristics of the outbreaks. Here we develop a statistical model that can be used to predict the probability distribution of tornado counts by EF rating on days expected to produce an outbreak. The model is fit using population centers to condition on the fact that damage ratings are related to the number (and type) of potential targets. The model quantifies the importance of this demographic information relative to information from environmental factors known to influence tornadoes, including CAPE and bulk shear. The model controls for distance to nearest city to quantify the percent increase in the chance of at least one tornado rated EF3 or higher for a unit increase in CAPE and bulk shear. The model is an ordered logistic regression and the coefficients are determined using the method of Hamiltonian Monte Carlo with the Stan language. Stan code is generated from R through the 'rethinking' package. The flexibility of this approach makes it easy to adjust the model to forecast other outbreak characteristics and to include domain-specific knowledge.
 
 Motivation: Current lack of statistical guidance for forecasting outbreak characteristics. Is this true? Perhaps such tools can be used to better describe the threat and thus hopefully save lives.
 
@@ -173,7 +173,7 @@ table(df2$maxEF)/dim(df2)[1]
 table(All_Tornadoes$mag)/dim(All_Tornadoes)[1]
 ```
 
-The histogram of tornadoes by EF rating on big outbreak days is as expected with the vast majority rated EF0 or EF1 and far fewer rated EF4 or EF5. But relative to all tornadoes the distribution favors higher ratings. For example 4.5\% of big outbreak day tornadoes are rated EF3 compared with 2.3\% of all tornadoes. And .1\% of big outbreak day tornadoes are rated EF5 compared with .04\% of all tornadoes. We re-describe this histogram on the log-cumulative-odds scale. This means constructing the odds of a cumulative probability and then taking a logarithm. The logit is log-odds. The cumulative logit is log-cumulative-odds. Both constrain the probabilities to the 0/1 interval. 
+As expected the histogram of tornadoes by EF rating on big outbreak days shows that the vast majority rated EF0 or EF1 and far fewer rated EF4 or EF5. But relative to all tornadoes the distribution favors higher ratings. For example 4.5\% of big outbreak day tornadoes are rated EF3 compared with 2.3\% of all tornadoes. And .1\% of big outbreak day tornadoes are rated EF5 compared with .04\% of all tornadoes. We describe this histogram on the log-cumulative-odds scale by constructing the odds of a cumulative probability and then taking logarithms. Since the logit is log-odds, the cumulative logit is log-cumulative-odds. Both the logit and cumulative logit constrain the probabilities to the interval between 0 and 1. 
 
 When we add predictor variables, we can safely do so on the cumulative logit scale. The link function takes care of converting the parameter estimates to the proper probability scale.
 
@@ -372,7 +372,6 @@ Extract the posterior values of the parameters.
 post.df <- extract.samples(m1.2)
 ```
 
-
 #### Bulk shear
 
 Consider how the model handles bulk shear. Set all variables to zero except distance to city and bulk shear. Set the distance to city to a small value (near the city). The scale and center parameters of the bulk shear variable are obtained and then extremes values are used.
@@ -530,7 +529,6 @@ id <- rep(1:length(nT), times = nT)
 df2$id <- id
 ```
 
-If you're using rstan or have access to R, I'd suggest loading the brms package. Then create your model something like:
 ```{r}
 library(brms)
 
