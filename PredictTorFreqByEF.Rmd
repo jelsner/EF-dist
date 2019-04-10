@@ -17,7 +17,7 @@ Elsner/Schroder
 
 _Journal of Applied Meteorology and Climatology_
 
-The science of forecasting where an outbreak of severe convective weather might occur days in advance is well developed. For example, considerable skill exists in outlining what regions of the United States have the highest risk of severe weather on any given day. But more work is needed to anticipate specific characteristics of the outbreaks. Here we develop a statistical model that can be used to predict the probability distribution of tornado counts by EF rating on days expected to produce an outbreak. The model is fit using population centers to condition on the fact that damage ratings are related to the number (and type) of potential targets. The model quantifies the importance of this demographic information relative to information from environmental factors known to influence tornadoes, including CAPE and bulk shear. The model controls for distance to nearest city to quantify the percent increase in the chance of at least one tornado rated EF3 or higher for a unit increase in CAPE and bulk shear. The model is an ordered logistic regression and the coefficients are determined using the method of Hamiltonian Monte Carlo with the Stan language. Stan code is generated from R through the 'rethinking' package. The flexibility of this approach makes it easy to adjust the model to forecast other outbreak characteristics and to include domain-specific knowledge.
+The science of forecasting where an outbreak of severe convective weather might occur days in advance is well developed. For example, considerable skill exists in outlining what regions of the United States have the highest risk of severe weather on any given day. But more work is needed to anticipate specific characteristics of the outbreaks. Here we develop a statistical model that can be used to predict the probability distribution of tornado counts by EF rating on days expected to produce an outbreak. The model is fit using population centers to condition on the fact that damage ratings are related to the number (and type) of potential targets. The model quantifies the importance of this demographic information relative to information from environmental factors known to influence tornadoes, including CAPE and bulk shear. The model controls for distance to nearest city to quantify the percent increase in the chance of at least one tornado rated EF3 or higher for a unit increase in CAPE and bulk shear. The model is an ordered logistic regression and the coefficients are determined using the method of Hamiltonian Monte Carlo with the Stan language. Stan code is generated from R through the 'brms' package. The flexibility of this approach makes it easy to adjust the model to forecast other outbreak characteristics and to include domain-specific knowledge.
 
 Motivation: Current lack of statistical guidance for forecasting outbreak characteristics. Is this true? Perhaps such tools can be used to better describe the threat and thus hopefully save lives.
 
@@ -529,6 +529,7 @@ id <- rep(1:length(nT), times = nT)
 df2$id <- id
 ```
 
+Use the **brms** package.
 ```{r}
 library(brms)
 
@@ -547,7 +548,80 @@ m1.3 <- brm(formula = formula,
 
 out <- predict(m1.3, probs = c(0, 1))
 
-stancode(m1.3)
+# stancode(m1.3)
+
+post.df <- posterior_samples(m1.3)
 ```
 
+Line plots.
+```{r}
+dists <- -1.3
+Yrs <- 0
+CAPEs <- 0
+HLCYs <- 0
+BSs <- c(BSlo, BShi)
+CINs <- 0
+
+tpk <- numeric()
+for ( s in 1:10 ) {
+    p <- post.df[s, ]
+    ak <- as.numeric(p[1:5])
+    phi <- p$b_BSs * BSs
+    pk <- pordlogit( 1:5 , a = ak , phi = phi )
+    tpk <- rbind(tpk, pk)
+}
+
+tpk.df <- as.data.frame(tpk)
+tpk.df$X <- rep(c(15, 45), times = 10)
+tpk.df$S <- rep(1:10, each = 2)
+names(tpk.df) <- c("EF0", "EF1", "EF2", "EF3", "EF4", "X", "S")
+
+ggplot(tpk.df, aes(x = X, y = EF0, group = S)) +
+  geom_line(color = "#EFF3FF") +
+  geom_line(aes(y = EF1), color = "#BDD7E7") +
+  geom_line(aes(y = EF2), color = "#6BAED6") +
+  geom_line(aes(y = EF3), color = "#3182BD") +
+  geom_line(aes(y = EF4), color = "#08519C") +
+  scale_y_continuous(limits = c(0, 1)) +
+  scale_x_continuous() +
+  xlab("Bulk Shear (m/s)") + ylab("Cumulative Proportion") +
+  theme_minimal()
+```
+
+Area plots.
+```{r}
+#p <- post.df[1, ]
+p <- colMeans(post.df)
+
+ak <- as.numeric(p[1:5])
+phi <- p[10] * BSs[1]
+dk1 <- dordlogit( 1:5 , a = ak , phi = phi )
+
+phi <- p[10] * BSs[2]
+dk2 <- dordlogit( 1:5 , a = ak , phi = phi )
+
+dk <- c(dk1, dk2)
+
+tpk.df <- data.frame(dk,
+                     BS = rep(c(15, 45), each = 5),
+                     EF = factor(rep(c("0", "1", "2", "3", "4"), times = 2), 
+                                 levels = c("4", "3", "2", "1", "0")))
+
+ggplot(tpk.df, aes(x = BS, y = dk)) + 
+  geom_area(aes(fill = EF), color = "white") +
+  scale_fill_brewer(type = "seq", direction = -1) +
+  xlab("Bulk Shear (m/s)") + ylab("Cumulative Proportion") +
+  theme_minimal() +
+  ggtitle(label = "Predicted proportion of tornadoes by EF category") 
+
+```
+
+Marginal plots.
+```{r}
+gg <- marginal_effects(m1.3, categorical = TRUE)
+ggBS <- gg[[5]]
+
+ggplot(ggBS, aes(x = BSs, y = estimate__, col = cats__)) +
+  geom_line() 
+```
 
