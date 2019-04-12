@@ -36,22 +36,11 @@ library(ggplot2)
 Load the data. The study uses the outbreak data collated in the `tor-cluster` GitHub project. The methodology for determining the big outbreak days is detailed in Schroder and Elsner (2019). Briefly, the method groups tornadoes occurring in the period 1994 through 2017 based on space-time distances between genesis locations. If two tornadoes occur close together in space and time, then they are grouped together. Grouping stops when the the space-time distance threshold exceeds 50K meter-seconds.
 ```{r}
 load("~/Desktop/Projects/EF-dist/BigDays.RData")
-st_crs(BigDayTornadoes)
+st_crs(Torn.sfT)
 st_crs(BigDays.sfdfT)
 ```
 
-The simple feature `BigDays.sfdfT` contains outbreak-level data including environmental variables. The simple feature `BigDayTornadoes` contains tornado-level data. Note: they have different CRSs.
-
-How many convective days have 10 or more tornadoes?
-```{r}
-All_Tornadoes %>%
-  group_by(cDate) %>%
-  summarize(nT = n()) %>%
-  filter(nT >= 10) %>%
-  dim()
-```
-
-Of these 870 big convective days we only consider 212 that occurred as part of a big outbreak.
+The simple feature `BigDays.sfdfT` contains outbreak-level data including environmental variables. The simple feature `Torn.sfT` contains tornado-level data for all tornadoes on the big days. Note: they have different CRSs.
 
 A map of a big tornado day.
 ```{r}
@@ -65,7 +54,7 @@ groupNo <- 53
 
 BD <- BigDays.sfdfT %>%
   filter(groupNumber == groupNo)
-BDt <- BigDayTornadoes %>%
+BDt <- Torn.sfT %>%
   filter(groupNumber == groupNo) %>%
   mutate(magF = factor(mag, levels = 0:4))
 
@@ -87,10 +76,10 @@ tm_layout(title = "April 26, 1994")
 
 Distribution of big convective days by month.
 ```{r}
-ggplot(BigDays.sfdfT, aes(x = Month)) +
+ggplot(BigDays.sfdfT, aes(x = as.factor(Month))) +
   geom_bar(fill = "gray70") +
   scale_x_discrete(labels = month.name) +
-  scale_y_continuous(limits = c(0, 60)) +
+  scale_y_continuous(limits = c(0, NA)) +
   ylab("Number of Big Days") + xlab("") +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
@@ -106,7 +95,7 @@ We join the environmental variables at the outbreak-level with the data at the t
 ```{r}
 df <- as.data.frame(BigDays.sfdfT) %>%
   select(ID, maxCAPE, maxHLCY, minCIN, maxBS, maxSM) %>%
-  left_join(as.data.frame(BigDayTornadoes), by = "ID")
+  left_join(as.data.frame(Torn.sfT), by = "ID")
 ```
 
 Compute the distance to nearest city/town.
@@ -117,8 +106,8 @@ C.sf <- us_cities() %>%
   st_transform(crs = 102004)
 
 dist <- numeric()
-for(i in seq_len(nrow(BigDayTornadoes))){
-  dist[i] <- min(st_distance(BigDayTornadoes[i, ], C.sf))
+for(i in seq_len(nrow(Torn.sfT))){
+  dist[i] <- min(st_distance(Torn.sfT[i, ], C.sf))
 }
 
 df$dist <- dist
