@@ -31,6 +31,7 @@ library(sf)
 library(tmap)
 library(dplyr)
 library(ggplot2)
+#load("Apr15")
 ```
 
 Load the data. The study uses the outbreak data collated in the `tor-cluster` GitHub project. The methodology for determining the big outbreak days is detailed in Schroder and Elsner (2019). Briefly, the method groups tornadoes occurring in the period 1994 through 2017 based on space-time distances between genesis locations. If two tornadoes occur close together in space and time, then they are grouped together. Grouping stops when the the space-time distance threshold exceeds 50K meter-seconds.
@@ -116,8 +117,8 @@ df$dist <- dist
 Returns the closest cities as a data frame.
 ```{r}
 closest.df <- numeric()
- for(i in seq_len(nrow(BigDayTornadoes))){
-     closest.df <- rbind(closest.df, as.data.frame(C.sf[which.min(st_distance(C.sf, BigDayTornadoes[i, ])), ]))
+ for(i in seq_len(nrow(Torn.sfT))){
+     closest.df <- rbind(closest.df, as.data.frame(C.sf[which.min(st_distance(C.sf, Torn.sfT[i, ])), ]))
  }
 
 closest.df %>%
@@ -127,6 +128,8 @@ closest.df %>%
 
 closest.df %>%
   filter(stplfips_2010 == 2018250)
+closest.df %>%
+  filter(stplfips_2010 == 2063600)
 ```
 
 Dodge City KS (2010 population of 27,340) and Scott City KS (3,816) are the two cities with the most 'nearby' tornadoes.
@@ -159,10 +162,11 @@ ggplot(plot.df, aes(x = EF, y = Frequency)) +
   theme_minimal()
 
 table(df2$maxEF)/dim(df2)[1]
-table(All_Tornadoes$mag)/dim(All_Tornadoes)[1]
+load("~/Desktop/Projects/EF-dist/BigDaysInLargeGroups.RData") # Note the file BigDays.sfdfT now is only days within a large group
+table(All_Tornadoes$mag)/nrow(All_Tornadoes)
 ```
 
-As expected the histogram of tornadoes by EF rating on big outbreak days shows that the vast majority rated EF0 or EF1 and far fewer rated EF4 or EF5. But relative to all tornadoes the distribution favors higher ratings. For example 4.5\% of big outbreak day tornadoes are rated EF3 compared with 2.3\% of all tornadoes. And .1\% of big outbreak day tornadoes are rated EF5 compared with .04\% of all tornadoes. We describe this histogram on the log-cumulative-odds scale by constructing the odds of a cumulative probability and then taking logarithms. Since the logit is log-odds, the cumulative logit is log-cumulative-odds. Both the logit and cumulative logit constrain the probabilities to the interval between 0 and 1. 
+As expected the histogram of tornadoes by EF rating on big outbreak days shows that the vast majority rated EF0 or EF1 and far fewer rated EF4 or EF5. But relative to all tornadoes the distribution favors higher ratings. For example 3.5\% of big outbreak day tornadoes are rated EF3 compared with 2.3\% of all tornadoes. And .08\% of big outbreak day tornadoes are rated EF5 compared with .05\% of all tornadoes. We describe this histogram on the log-cumulative-odds scale by constructing the odds of a cumulative probability and then taking logarithms. Since the logit is log-odds, the cumulative logit is log-cumulative-odds. Both the logit and cumulative logit constrain the probabilities to the interval between 0 and 1. 
 
 When we add predictor variables, we can safely do so on the cumulative logit scale. The link function takes care of converting the parameter estimates to the proper probability scale.
 
@@ -265,26 +269,6 @@ The model returns the same values as those in `cum_pr_k`.
 logistic(coef(m1.1))
 ```
 
-Using Stan's HMC engine.
-```{r}
-m1.1stan <- map2stan(
-    alist(
-        maxEF1 ~ dordlogit( phi , cutpoints ),
-        phi <- 0,
-        cutpoints ~ dnorm(0, 10)
-),
-data = list(maxEF1 = df2$maxEF1), 
-start = list(cutpoints = c(-2, -1, 0, 2, 3)), 
-chains = 2 , cores = 2 )
-```
-
-```{r}
-# need depth=2 to show vector of parameters
-precis(m1.1stan, depth = 2)
-```
-
-The individual `cutpoints` parameters correspond to each $\alpha_k$ from earlier.
-
 ### Adding a predictor variable
 
 To include predictor variables, we define the log-cumulative-odds of each EF rating $k$ as a sum of its intercept $\alpha_k$ and a typical linear model. Suppose for  example we want to add a predictor $x$ to the model. We do this by defining a linear model $\phi_i = \beta x_i$. Then each cumulative logit becomes
@@ -327,7 +311,134 @@ df2$BSs <- scale(df2$maxBS)
 df2$CINs <- scale(df2$minCIN)
 ```
 
-We fit this model by adding the slope parameters and predictor variables to the `phi` parameter inside `dordlogit()` function. Note this model ignores the group level effect of the outbreaks.
+### Mixed effects model
+
+Cluster number indexed from 1 to number of clusters.
+```{r}
+nT <- as.vector(table(df2$ID))
+id <- rep(1:length(nT), times = nT)
+df2$id <- id
+```
+
+Use the **brms** package.
+```{r}
+library(brms)
+
+formula <- maxEF1 ~ Yrs + dists + CAPEs + HLCYs + BSs + CINs  + (1|id)
+family <- brms::cumulative(threshold = "flexible")
+
+get_prior(formula, data = df2, family = family)
+
+post <- brm(formula = formula,
+            data = df2,
+            family = family,
+            prior = c(set_prior("normal(0,5)", class = "b"),
+                    set_prior("student_t(3, 0, 10)", class = "Intercept"),
+                    set_prior("student_t(3, 0, 10)", class = "sd")),
+             seed = 9112)
+
+save.image("Apr15")
+#out <- predict(post, probs = c(0, 1))
+# stancode(post)
+
+post.df <- posterior_samples(post)
+```
+
+```{r}
+library(bayestestR)
+equivalence_test(post)
+```
+
+Line plots.
+```{r}
+dists <- -1.3
+Yrs <- 0
+CAPEs <- 0
+HLCYs <- 0
+BSs <- c(BSlo, BShi)
+CINs <- 0
+
+tpk <- numeric()
+for ( s in 1:10 ) {
+    p <- post.df[s, ]
+    ak <- as.numeric(p[1:5])
+    phi <- p$b_BSs * BSs
+    pk <- pordlogit( 1:5 , a = ak , phi = phi )
+    tpk <- rbind(tpk, pk)
+}
+
+tpk.df <- as.data.frame(tpk)
+tpk.df$X <- rep(c(15, 45), times = 10)
+tpk.df$S <- rep(1:10, each = 2)
+names(tpk.df) <- c("EF0", "EF1", "EF2", "EF3", "EF4", "X", "S")
+
+ggplot(tpk.df, aes(x = X, y = EF0, group = S)) +
+  geom_line(color = "#EFF3FF") +
+  geom_line(aes(y = EF1), color = "#BDD7E7") +
+  geom_line(aes(y = EF2), color = "#6BAED6") +
+  geom_line(aes(y = EF3), color = "#3182BD") +
+  geom_line(aes(y = EF4), color = "#08519C") +
+  scale_y_continuous(limits = c(0, 1)) +
+  scale_x_continuous() +
+  xlab("Bulk Shear (m/s)") + ylab("Cumulative Proportion") +
+  theme_minimal()
+```
+
+Area plots.
+```{r}
+#p <- post.df[1, ]
+p <- colMeans(post.df)
+
+ak <- as.numeric(p[1:5])
+phi <- p[10] * BSs[1]
+dk1 <- dordlogit( 1:5 , a = ak , phi = phi )
+
+phi <- p[10] * BSs[2]
+dk2 <- dordlogit( 1:5 , a = ak , phi = phi )
+
+dk <- c(dk1, dk2)
+
+tpk.df <- data.frame(dk,
+                     BS = rep(c(15, 45), each = 5),
+                     EF = factor(rep(c("0", "1", "2", "3", "4"), times = 2), 
+                                 levels = c("4", "3", "2", "1", "0")))
+
+ggplot(tpk.df, aes(x = BS, y = dk)) + 
+  geom_area(aes(fill = EF), color = "white") +
+  scale_fill_brewer(type = "seq", direction = -1) +
+  xlab("Bulk Shear (m/s)") + ylab("Cumulative Proportion") +
+  theme_minimal() +
+  ggtitle(label = "Predicted proportion of tornadoes by EF category") 
+
+```
+
+Marginal plots.
+```{r}
+gg <- marginal_effects(m1.3, categorical = TRUE)
+ggBS <- gg[[5]]
+levels(ggBS$cats__) <- c("0", "1", "2", "3", "4", "5")
+
+BSs <- scale(df2$maxBS)
+scale <- attr(BSs, "scaled:scale")
+center <- attr(BSs, "scaled:center")
+
+ggBS <- ggBS %>%
+  mutate(BS = BSs * scale + center)
+
+ggplot(ggBS, aes(x = BS, y = estimate__, col = cats__)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = lower__, ymax = upper__, fill = cats__), 
+              alpha = .7, col = NA) +
+  scale_color_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Blues") +
+  scale_fill_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Blues") +
+  ylab("Relative Chance of a Tornado\nCausing EF-level Damage") +
+  xlab("Bulk Shear (m/s)") +
+  theme_minimal()
+```
+
+OLD STUFF
+
+We fit this model by adding the slope parameters and predictor variables to the `phi` parameter inside `dordlogit()` function. Note this model ignores the group-level effect of the outbreaks.
 ```{r}
 m1.2 <- map(
   alist(
@@ -509,123 +620,4 @@ ggplot(tpk.df, aes(x = Dc/1000, y = dk)) +
 
 ```
 
-### Random effect variable. 
-
-Cluster number.
-```{r}
-nT <- as.vector(table(df2$ID))
-id <- rep(1:length(nT), times = nT)
-df2$id <- id
-```
-
-Use the **brms** package.
-```{r}
-library(brms)
-
-formula <- maxEF1 ~ Yrs + dists + CAPEs + HLCYs + BSs + CINs  + (1|id)
-family <- brms::cumulative(threshold = "flexible")
-
-get_prior(formula, data = df2, family = family)
-
-m1.3 <- brm(formula = formula,
-            data = df2,
-            family = family,
-            prior = c(set_prior("normal(0,5)", class = "b"),
-                    set_prior("student_t(3, 0, 10)", class = "Intercept"),
-                    set_prior("student_t(3, 0, 10)", class = "sd")),
-             seed = 9112)
-
-out <- predict(m1.3, probs = c(0, 1))
-
-# stancode(m1.3)
-
-post.df <- posterior_samples(m1.3)
-```
-
-Line plots.
-```{r}
-dists <- -1.3
-Yrs <- 0
-CAPEs <- 0
-HLCYs <- 0
-BSs <- c(BSlo, BShi)
-CINs <- 0
-
-tpk <- numeric()
-for ( s in 1:10 ) {
-    p <- post.df[s, ]
-    ak <- as.numeric(p[1:5])
-    phi <- p$b_BSs * BSs
-    pk <- pordlogit( 1:5 , a = ak , phi = phi )
-    tpk <- rbind(tpk, pk)
-}
-
-tpk.df <- as.data.frame(tpk)
-tpk.df$X <- rep(c(15, 45), times = 10)
-tpk.df$S <- rep(1:10, each = 2)
-names(tpk.df) <- c("EF0", "EF1", "EF2", "EF3", "EF4", "X", "S")
-
-ggplot(tpk.df, aes(x = X, y = EF0, group = S)) +
-  geom_line(color = "#EFF3FF") +
-  geom_line(aes(y = EF1), color = "#BDD7E7") +
-  geom_line(aes(y = EF2), color = "#6BAED6") +
-  geom_line(aes(y = EF3), color = "#3182BD") +
-  geom_line(aes(y = EF4), color = "#08519C") +
-  scale_y_continuous(limits = c(0, 1)) +
-  scale_x_continuous() +
-  xlab("Bulk Shear (m/s)") + ylab("Cumulative Proportion") +
-  theme_minimal()
-```
-
-Area plots.
-```{r}
-#p <- post.df[1, ]
-p <- colMeans(post.df)
-
-ak <- as.numeric(p[1:5])
-phi <- p[10] * BSs[1]
-dk1 <- dordlogit( 1:5 , a = ak , phi = phi )
-
-phi <- p[10] * BSs[2]
-dk2 <- dordlogit( 1:5 , a = ak , phi = phi )
-
-dk <- c(dk1, dk2)
-
-tpk.df <- data.frame(dk,
-                     BS = rep(c(15, 45), each = 5),
-                     EF = factor(rep(c("0", "1", "2", "3", "4"), times = 2), 
-                                 levels = c("4", "3", "2", "1", "0")))
-
-ggplot(tpk.df, aes(x = BS, y = dk)) + 
-  geom_area(aes(fill = EF), color = "white") +
-  scale_fill_brewer(type = "seq", direction = -1) +
-  xlab("Bulk Shear (m/s)") + ylab("Cumulative Proportion") +
-  theme_minimal() +
-  ggtitle(label = "Predicted proportion of tornadoes by EF category") 
-
-```
-
-Marginal plots.
-```{r}
-gg <- marginal_effects(m1.3, categorical = TRUE)
-ggBS <- gg[[5]]
-levels(ggBS$cats__) <- c("0", "1", "2", "3", "4", "5")
-
-BSs <- scale(df2$maxBS)
-scale <- attr(BSs, "scaled:scale")
-center <- attr(BSs, "scaled:center")
-
-ggBS <- ggBS %>%
-  mutate(BS = BSs * scale + center)
-
-ggplot(ggBS, aes(x = BS, y = estimate__, col = cats__)) +
-  geom_line() +
-  geom_ribbon(aes(ymin = lower__, ymax = upper__, fill = cats__), 
-              alpha = .7, col = NA) +
-  scale_color_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Blues") +
-  scale_fill_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Blues") +
-  ylab("Relative Chance of a Tornado\nCausing EF-level Damage") +
-  xlab("Bulk Shear (m/s)") +
-  theme_minimal()
-```
 
