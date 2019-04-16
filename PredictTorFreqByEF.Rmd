@@ -80,14 +80,14 @@ ggplot(BigDays.sfdfT, aes(x = as.factor(Month))) +
   geom_bar(fill = "gray70") +
   scale_x_discrete(labels = month.name) +
   scale_y_continuous(limits = c(0, NA)) +
-  ylab("Number of Big Days") + xlab("") +
+  ylab("Number of Outbreaks\nWith At Least 10 Tornadoes") + xlab("") +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 ggplot(BigDays.sfdfT, aes(x = nT)) +
   geom_histogram(fill = "gray70", binwidth = 5) +
   scale_y_continuous(limits = c(0, NA)) +
-  ylab("Number of Big Days") + xlab("Number of Tornadoes") +
+  ylab("Number of Outbreaks") + xlab("Number of Tornadoes") +
   theme_minimal() 
 ```
 
@@ -140,7 +140,7 @@ McElreath Lecture 14. Chapter 12 of his rethinking book.
 Load the **rethinking** package.
 ```{r}
 #devtools::install_github("rmcelreath/rethinking")
-library(rethinking)
+#library(rethinking)
 ```
 
 ### Describing the ordered distribution of maximum EF ratings with intercepts
@@ -188,7 +188,7 @@ ggplot(plot.df, aes(x = maxEF, y = cum_pr_k_all)) +
     ylab("Cumulative Proportion") +
   theme_minimal()
 ```
-**Cumulative proportion of tornadoes by maximum EF rating for all tornadoes (gray) and for tornadoes occurring on big days in big outbreaks (black)**
+**Cumulative proportion of tornadoes by maximum EF rating for all tornadoes (gray) and for tornadoes occurring in big outbreaks (black)**
 
 Then to re-describe the histogram as log-cumulative odds, we need a series of intercept parameters. Each intercept will be on the log-cumulative-odds scale and stand in for the cumulative probability of each rating.
 $$
@@ -198,8 +198,8 @@ where $\alpha_k$ is an 'intercept' unique to each possible EF rating $k$.
 
 We compute these intercept parameters directly.
 ```{r}
-( lco <- logit(cum_pr_k) )
-( lco_all <- logit(cum_pr_k_all) )
+( lco <- rethinking::logit(cum_pr_k) )
+( lco_all <- rethinking::logit(cum_pr_k_all) )
 
 plot.df$lco <- lco
 plot.df$lco_all <- lco_all
@@ -247,27 +247,6 @@ $$
 
 The Ordered distribution is a categorical distribution that takes a vector $p = \{p_0, p_1, p_2, p_3, p_4\}$ of probabilities for each EF rating below the highest (EF5). Each response value $k$ in this vector is defined by its link to an intercept parameter ($\alpha_k$). 
 
-Finally, some weakly regularizing priors are placed on these intercepts. In this case, there is a lot of data so just about any prior will be overwhelmed.
-
-In code form. Note we can't use zero as a category so we add 1 to the variable `maxEF`.
-```{r}
-df2$maxEF1 <- df2$maxEF + 1
-m1.1 <- map(
-  alist(
-    maxEF1 ~ dordlogit( phi, c(a0, a1, a2, a3, a4) ),
-    phi <- 0,
-    c(a0, a1, a2, a3, a4) <- dnorm(0, 10)
-  ) ,
-  data = df2 ,
-  start = list(a0 = -1, a1 = 0, a2 = 1, a3 = 2, a4 = 3)
-)
-```
-
-The model returns the same values as those in `cum_pr_k`.
-```{r}
-logistic(coef(m1.1))
-```
-
 ### Adding a predictor variable
 
 To include predictor variables, we define the log-cumulative-odds of each EF rating $k$ as a sum of its intercept $\alpha_k$ and a typical linear model. Suppose for  example we want to add a predictor $x$ to the model. We do this by defining a linear model $\phi_i = \beta x_i$. Then each cumulative logit becomes
@@ -279,26 +258,6 @@ $$
 $$
 
 The form automatically ensures the correct ordering of the EF ratings, while still morphing the likelihood of each individual value as the predictor $x_i$ changes value. Why is the linear model $\phi$ subtracted from each intercept? Because if we decrease the log-cumulative odds of every outcome value $k$ below the maximum, this necessarily shifts the probability mass upwards towards higher outcome values. Recall quantile regression.
-
-For example, suppose we take the MAP estimates from `m1.1` and subtract .5 from each. The function `dordlogit()` makes the calculation of likelihoods straitforward.
-```{r}
-( pk <- dordlogit(1:5, 0, coef(m1.1)) )
-```
-
-These probabilities imply an average outcome value of
-```{r}
-sum(pk * (1:5))
-```
-
-And now subtracting .5 from each
-```{r}
-pk <- dordlogit(1:5, 0, coef(m1.1) - .5)
-sum(pk * (1:5))
-```
-
-The expected value has increased to 2.0.
-
-And that is why we subtract $\phi$, the linear model $\beta x_i$ from each intercept. This way a positive $\beta$ value indicates that an increase in the predictor variable $x$ results in an increase in the average response.
 
 Create scaled predictor variables.
 ```{r}
@@ -322,10 +281,9 @@ df2$id <- id
 Use the **brms** package.
 ```{r}
 library(brms)
-#load("post.RData")
+#load("fit.RData")
 
 formula <- maxEF1 ~ Yrs + dists + CAPEs + HLCYs + BSs + CINs  + (1|id)
-formula <- maxEF1 ~ dists + CAPEs + HLCYs + BSs + CINs  + (1|id) + cor_bsts(~ Yr)
 family <- brms::cumulative(threshold = "flexible")
 
 get_prior(formula, data = df2, family = family)
@@ -349,7 +307,7 @@ Here we examine whether the effect of bulk shear is different for across differe
 ```{r, eval=FALSE}
 formula <- maxEF1 ~ Yrs + dists + CAPEs + HLCYs + cs(BSs) + CINs  + (1|id)
 family <- "sratio"
-post2 <- brm(formula = formula,
+fit2 <- brm(formula = formula,
             data = df2,
             family = family,
             prior = c(set_prior("normal(0,5)", class = "b"),
