@@ -157,7 +157,7 @@ We begin with a histogram of maximum EF rating per tornado.
 ```{r}
 df2 <- df %>%
   mutate(maxEF = as.integer(mag)) %>%
-  select(ID, maxEF, dist, maxEF, Year, maxCAPE, maxHLCY, maxBS, minCIN)
+  select(ID, maxEF, dist, maxEF, Year, mo, maxCAPE, maxHLCY, maxBS, minCIN)
 
 plot.df <- data.frame(table(df2$maxEF))
 names(plot.df) <- c("EF", "Frequency")
@@ -290,6 +290,7 @@ Use the **brms** package.
 ```{r}
 library(brms)
 #load("fit.RData")
+df2$maxEF1 <- df2$maxEF + 1
 
 formula <- maxEF1 ~ Yrs + dists + CAPEs + HLCYs + BSs + CINs  + (1|id)
 family <- brms::cumulative(threshold = "flexible")
@@ -304,7 +305,18 @@ fit <- brm(formula = formula,
                     set_prior("student_t(3, 0, 10)", class = "sd")),
            seed = 9112)
 
+formula <- maxEF1 ~ Yrs + dists + CAPEs + HLCYs + BSs + CINs  + (1|mo) + (1|id)
+fit2 <- brm(formula = formula,
+           data = df2,
+           family = family,
+           prior = c(set_prior("normal(0,5)", class = "b"),
+                    set_prior("student_t(3, 0, 10)", class = "Intercept"),
+                    set_prior("student_t(3, 0, 10)", class = "sd")),
+           control = list(max_treedepth = 15),
+           seed = 9112)
+
 save(fit, file = "fit.RData")
+save(fit2, file = "fit2.RData")
 #out <- predict(post, probs = c(0, 1))
 # stancode(post)
 
@@ -315,7 +327,7 @@ Here we examine whether the effect of bulk shear is different for across differe
 ```{r, eval=FALSE}
 formula <- maxEF1 ~ Yrs + dists + CAPEs + HLCYs + cs(BSs) + CINs  + (1|id)
 family <- "sratio"
-fit2 <- brm(formula = formula,
+fit3 <- brm(formula = formula,
             data = df2,
             family = family,
             prior = c(set_prior("normal(0,5)", class = "b"),
@@ -328,8 +340,8 @@ Apparently not. The uncertainty on the estimates overlap.
 
 Cross validation. This takes a long time.
 ```{r, eval=FALSE}
-kfold1 <- kfold(post, folds = "stratified", group = "id")
-kfold2 <- kfold(post, group = "id", chains = 1) 
+kfold1 <- kfold(fit, folds = "stratified", group = "id")
+kfold <- kfold(fit, group = "id", chains = 1) 
 ```
 
 ```{r}
