@@ -290,6 +290,7 @@ Use the **brms** package.
 ```{r}
 library(brms)
 #load("fit.RData")
+#load("fit2.RData")
 df2$maxEF1 <- df2$maxEF + 1
 
 formula <- maxEF1 ~ Yrs + dists + CAPEs + HLCYs + BSs + CINs  + (1|id)
