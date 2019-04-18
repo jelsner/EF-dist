@@ -42,7 +42,7 @@ st_crs(BigDays.sfdfT)
 
 The simple feature `BigDays.sfdfT` contains outbreak-level data including environmental variables. The simple feature `Torn.sfT` contains tornado-level data for all tornadoes on the big days. Note: they have different CRSs.
 
-A map of a big tornado day.
+A map of one tornado outbreak.
 ```{r}
 library(USAboundaries)
 ctys <- us_counties()
@@ -74,7 +74,7 @@ tm_scale_bar(position = c("left", "bottom")) +
 tm_layout(title = "April 26, 1994")
 ```
 
-Distribution of big convective days by month.
+Distribution of outbreaks by month.
 ```{r}
 ggplot(BigDays.sfdfT, aes(x = as.factor(Month))) +
   geom_bar(fill = "gray70") +
@@ -83,6 +83,14 @@ ggplot(BigDays.sfdfT, aes(x = as.factor(Month))) +
   ylab("Number of Outbreaks\nWith At Least 10 Tornadoes") + xlab("") +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplot(BigDays.sfdfT, aes(x = Month)) +
+  geom_bar(fill = "gray70") +
+  scale_x_continuous(breaks = seq(1, 12, 1), labels = month.abb) +
+  scale_y_continuous(limits = c(0, NA)) +
+  coord_polar(start = 0) +
+  labs(x = "Month", y = "Number of Outbreaks\nWith At Least 10 Tornadoes") +
+  theme_minimal()
 
 ggplot(BigDays.sfdfT, aes(x = nT)) +
   geom_histogram(fill = "gray70", binwidth = 5) +
