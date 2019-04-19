@@ -322,6 +322,7 @@ save(fit2, file = "fit2.RData")
 # stancode(post)
 
 fit.df <- posterior_samples(fit)
+fit2.df <- posterior_samples(fit2)
 ```
 
 Here we examine whether the effect of bulk shear is different for across different EF ratings.
@@ -337,9 +338,9 @@ fit3 <- brm(formula = formula,
                     set_prior("normal(-1, 2)", coef = "BSs")),
              seed = 9112)
 ```
-Apparently not. The uncertainty on the estimates overlap.
+Apparently not. The uncertainty bounds on the estimates overlap.
 
-Cross validation. This takes a long time.
+Cross validation. This takes a very long time.
 ```{r, eval=FALSE}
 kfold1 <- kfold(fit, folds = "stratified", group = "id")
 kfold <- kfold(fit, group = "id", chains = 1) 
@@ -347,7 +348,7 @@ kfold <- kfold(fit, group = "id", chains = 1)
 
 ```{r}
 library(bayestestR)
-equivalence_test(fit)
+equivalence_test(fit2)
 ```
 
 #### Bulk shear
@@ -372,7 +373,7 @@ CINs <- 0
 
 tpk <- numeric()
 for ( s in 1:10 ) {
-    p <- fit.df[s, ]
+    p <- fit2.df[s, ]
     ak <- as.numeric(p[1:5])
     phi <- p$b_BSs * BSs
     pk <- rethinking::pordlogit( 1:5 , a = ak , phi = phi )
@@ -399,7 +400,7 @@ ggplot(tpk.df, aes(x = X, y = EF0, group = S)) +
 Area plots.
 ```{r}
 #p <- fit.df[1, ]
-p <- colMeans(fit.df)
+p <- colMeans(fit2.df)
 
 ak <- as.numeric(p[1:5])
 phi <- p[10] * BSs[1]
@@ -425,7 +426,7 @@ ggplot(tpk.df, aes(x = BS, y = dk)) +
 
 Marginal plot. Bulk shear.
 ```{r}
-gg <- marginal_effects(fit, categorical = TRUE)
+gg <- marginal_effects(fit2, categorical = TRUE)
 ggBS <- gg[[5]]
 levels(ggBS$cats__) <- c("0", "1", "2", "3", "4", "5")
 
@@ -467,6 +468,29 @@ ggplot(ggDist, aes(x = dist/1000, y = estimate__, col = cats__)) +
   scale_fill_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Blues") +
   ylab("Relative Chance of a Tornado\nCausing EF-level Damage") +
   xlab("Distance to nearest city (km)") +
+  theme_minimal()
+```
+
+Marginal plot. CAPE.
+```{r}
+ggCAPE <- gg[[3]]
+levels(ggCAPE$cats__) <- c("0", "1", "2", "3", "4", "5")
+
+CAPEs <- scale(df2$maxCAPE)
+scale <- attr(CAPEs, "scaled:scale")
+center <- attr(CAPEs, "scaled:center")
+
+ggCAPE <- ggCAPE %>%
+  mutate(CAPE = CAPEs * scale + center)
+
+ggplot(ggCAPE, aes(x = CAPE, y = estimate__, col = cats__)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = lower__, ymax = upper__, fill = cats__), 
+              alpha = .7, col = NA) +
+  scale_color_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Blues") +
+  scale_fill_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Blues") +
+  ylab("Relative Chance of a Tornado\nCausing EF-level Damage") +
+  xlab("CAPE (J/kg)") +
   theme_minimal()
 ```
 
