@@ -33,14 +33,14 @@ library(dplyr)
 library(ggplot2)
 ```
 
-Load the data. The study uses the outbreak data collated in the `tor-cluster` GitHub project. The methodology for determining the big outbreak days is detailed in Schroder and Elsner (2019). Briefly, the method groups tornadoes occurring in the period 1994 through 2017 based on space-time distances between genesis locations. If two tornadoes occur close together in space and time, then they are grouped together. Grouping stops when the the space-time distance threshold exceeds 50K meter-seconds.
+Load the data. The study uses the data collated in the `tor-cluster` GitHub project. The methodology for determining the big cluster days is detailed in Schroder and Elsner (2019). Briefly, the method groups tornadoes occurring in the period 1994 through 2017 based on space-time distances between genesis locations. If two tornadoes occur close together in space and time, they are grouped together in a cluster. Grouping stops when the the space-time distance threshold exceeds 50K meter-seconds.
 ```{r}
 load("~/Desktop/Projects/EF-dist/BigDays.RData")
 st_crs(Torn.sfT)
 st_crs(BigDays.sfdfT)
 ```
 
-The simple feature `BigDays.sfdfT` contains group-level data including environmental variables. The simple feature `Torn.sfT` contains tornado-level data for all tornadoes on the big days. Note: they have different CRSs.
+The simple feature `BigDays.sfdfT` contains cluster-level data including environmental variables. The simple feature `Torn.sfT` contains tornado-level data for all tornadoes on the big days. Note: they have different CRSs.
 
 A map of one tornado group.
 ```{r}
@@ -95,11 +95,11 @@ ggplot(BigDays.sfdfT, aes(x = Month)) +
 ggplot(BigDays.sfdfT, aes(x = nT)) +
   geom_histogram(fill = "gray70", binwidth = 5) +
   scale_y_continuous(limits = c(0, NA)) +
-  ylab("Number of Outbreaks") + xlab("Number of Tornadoes") +
+  ylab("Number of Clusters") + xlab("Number of Tornadoes") +
   theme_minimal() 
 ```
 
-We join the environmental variables at the outbreak-level with the data at the tornado level.
+We join the environmental variables at the cluster-level with the data at the tornado level.
 ```{r}
 df <- as.data.frame(BigDays.sfdfT) %>%
   select(ID, maxCAPE, maxHLCY, minCIN, maxBS, maxSM) %>%
@@ -239,7 +239,6 @@ library(ggpubr)
 ggarrange(p1, p2)
 ```
 
-
 What we really want is the prior distribution of these intercepts. This allows us to take into account sample size and prior information, as well as insert predictor variables.
 
 To use Bayes' theorem to compute the posterior distribution of these intercepts, we will need to compute the likelihood for each possible EF rating. So the last step in constructing the basic model fitting engine for these ordered categorical outcomes is to use cumulative probabilities $\Pr(y_i \le k)$ to compute the likelihood $\Pr(y_i = k)$.
@@ -302,34 +301,44 @@ df2$id <- id
 ```
 
 Use the **brms** package.
+
+Start by setting the family and the model formula. Get priors. Start with some default priors (for example "normal(0,5)" for the class = "b"). Sample from the priors and check the predictive distribution of the response. Adjust the priors accordingly.
 ```{r}
 library(brms)
 #load("fit.RData")
 #load("fit2.RData")
 df2$maxEF1 <- df2$maxEF + 1
 
-formula <- maxEF1 ~ Yrs + dists + CAPEs + HLCYs + BSs + CINs  + (1|id)
 family <- brms::cumulative(threshold = "flexible")
+formula <- maxEF1 ~ Yrs + dists + CAPEs + HLCYs + BSs + CINs  + (1|mo) + (1|id)
 
 get_prior(formula, data = df2, family = family)
 
+prior <- brm(formula = formula,
+           data = df2,
+           family = family,
+           prior = c(set_prior("normal(0,.5)", class = "b"),
+                    set_prior("student_t(3, 0, 10)", class = "Intercept"),
+                    set_prior("student_t(3, 0, 10)", class = "sd")),
+           sample_prior = "only",
+           control = list(max_treedepth = 15),
+           seed = 9112)
+
+out <- predict(prior, probs = c(0, 1))
+```
+
+Fit the model.
+```{r}
 fit <- brm(formula = formula,
            data = df2,
            family = family,
-           prior = c(set_prior("normal(0,5)", class = "b"),
-                    set_prior("student_t(3, 0, 10)", class = "Intercept"),
-                    set_prior("student_t(3, 0, 10)", class = "sd")),
-           seed = 9112)
-
-formula <- maxEF1 ~ Yrs + dists + CAPEs + HLCYs + BSs + CINs  + (1|mo) + (1|id)
-fit2 <- brm(formula = formula,
-           data = df2,
-           family = family,
-           prior = c(set_prior("normal(0,5)", class = "b"),
+           prior = c(set_prior("normal(0,.5)", class = "b"),
                     set_prior("student_t(3, 0, 10)", class = "Intercept"),
                     set_prior("student_t(3, 0, 10)", class = "sd")),
            control = list(max_treedepth = 15),
-           seed = 9112)
+           seed = 9121)
+
+
 
 save(fit, file = "fit.RData")
 save(fit2, file = "fit2.RData")
@@ -364,6 +373,19 @@ kfold <- kfold(fit, group = "id", chains = 1)
 ```{r}
 library(bayestestR)
 equivalence_test(fit2)
+```
+
+### Hypothesis test
+```{r}
+summary(fit2)
+```
+
+Test the hypothesis that bulk shear is more important that CAPE.
+```{r}
+(hyp <- hypothesis(fit2, "BSs > CAPEs", class = "b"))
+plot(hyp)
+
+hypothesis(fit2, "BSs > 0", class = "b", group = "mo", scope = "coef")
 ```
 
 #### Bulk shear
@@ -508,180 +530,4 @@ ggplot(ggCAPE, aes(x = CAPE, y = estimate__, col = cats__)) +
   xlab("CAPE (J/kg)") +
   theme_minimal()
 ```
-
-
-
-OLD STUFF
-
-We fit this model by adding the slope parameters and predictor variables to the `phi` parameter inside `dordlogit()` function. Note this model ignores the group-level effect of the outbreaks.
-```{r}
-m1.2 <- map(
-  alist(
-    maxEF1 ~ dordlogit( phi, c(a0, a1, a2, a3, a4) ),
-    phi <- bYr * Yrs + bDis * dists + bCA * CAPEs + bH * HLCYs + bS * BSs + bCI * CINs,
-    a[id] ~ dnorm(0, 1.5),
-    bYr ~ dnorm(0, 10),
-    bDis ~ dnorm(0, 10),
-    bCA ~ dnorm(0, 10),
-    bH ~ dnorm(0, 10),
-    bS ~ dnorm(0, 10),
-    bCI ~ dnorm(0, 10),
-#    bI ~ dnorm(0, 10),
-    c(a0, a1, a2, a3, a4) <- dnorm(0, 10)
-  ) ,
-  data = df2 ,
-  start = list(a0 = -1, a1 = 0, a2 = 1, a3 = 2, a4 = 3, 
-               bYr = 0, bDis = 0, bCA = 0, bH = 0, bS = 0, bCI = 0)
-)
-```
-
-Model summary.
-```{r}
-summary(m1.2)
-```
-
-### Plot the posterior predictions
-
-Extract the posterior values of the parameters.
-```{r}
-post.df <- extract.samples(m1.2)
-```
-
-Line plots.
-```{r}
-dists <- -1.3
-Yrs <- 0
-CAPEs <- 0
-HLCYs <- 0
-BSs <- c(BSlo, BShi)
-CINs <- 0
-
-tpk <- numeric()
-for ( s in 1:10 ) {
-    p <- post.df[s, ]
-    ak <- as.numeric(p[1:5])
-    phi <- p$bS * BSs
-    pk <- pordlogit( 1:5 , a = ak , phi = phi )
-    tpk <- rbind(tpk, pk)
-}
-
-tpk.df <- as.data.frame(tpk)
-tpk.df$X <- rep(c(15, 45), times = 10)
-tpk.df$S <- rep(1:10, each = 2)
-names(tpk.df) <- c("EF0", "EF1", "EF2", "EF3", "EF4", "X", "S")
-
-ggplot(tpk.df, aes(x = X, y = EF0, group = S)) +
-  geom_line(color = "#EFF3FF") +
-  geom_line(aes(y = EF1), color = "#BDD7E7") +
-  geom_line(aes(y = EF2), color = "#6BAED6") +
-  geom_line(aes(y = EF3), color = "#3182BD") +
-  geom_line(aes(y = EF4), color = "#08519C") +
-  scale_y_continuous(limits = c(0, 1)) +
-  scale_x_continuous() +
-  xlab("Bulk Shear (m/s)") + ylab("Cumulative Proportion") +
-  theme_minimal()
-```
-
-Area plots.
-```{r}
-#p <- post.df[1, ]
-p <- colMeans(post.df)
-
-ak <- as.numeric(p[1:5])
-phi <- p[10] * BSs[1]
-dk1 <- dordlogit( 1:5 , a = ak , phi = phi )
-
-phi <- p[10] * BSs[2]
-dk2 <- dordlogit( 1:5 , a = ak , phi = phi )
-
-dk <- c(dk1, dk2)
-
-tpk.df <- data.frame(dk,
-                     BS = rep(c(15, 45), each = 5),
-                     EF = factor(rep(c("0", "1", "2", "3", "4"), times = 2), 
-                                 levels = c("4", "3", "2", "1", "0")))
-
-ggplot(tpk.df, aes(x = BS, y = dk)) + 
-  geom_area(aes(fill = EF), color = "white") +
-  scale_fill_brewer(type = "seq", direction = -1) +
-  xlab("Bulk Shear (m/s)") + ylab("Cumulative Proportion") +
-  theme_minimal() +
-  ggtitle(label = "Predicted proportion of tornadoes by EF category") 
-
-```
-
-#### Distance to city
-
-Consider how the model handles distance from city. Set all variables to zero except distance from city and bulk shear. Set bulk shear to a high value. The scale and center parameters of the bulk shear variable are obtained and then extremes values are used.
-```{r}
-dists <- scale(df2$dist)
-scale <- attr(dists, "scaled:scale")
-center <- attr(dists, "scaled:center")
-
-( Dclose <- (0 - center) / scale )
-( Dfar <- (100000 - center) / scale )
-```
-
-Line plots.
-```{r}
-dists <- c(Dclose, Dfar)
-Yrs <- 0
-CAPEs <- 0
-HLCYs <- 0
-BSs <- 2.2
-CINs <- 0
-
-tpk <- numeric()
-for ( s in 1:10 ) {
-    p <- post.df[s, ]
-    ak <- as.numeric(p[1:5])
-    phi <- p$bS * BSs + p$bDis * dists
-    pk <- pordlogit( 1:5 , a = ak , phi = phi )
-    tpk <- rbind(tpk, pk)
-}
-
-tpk.df <- as.data.frame(tpk)
-tpk.df$X <- rep(c(0, 100000), times = 10)
-tpk.df$S <- rep(1:10, each = 2)
-names(tpk.df) <- c("EF0", "EF1", "EF2", "EF3", "EF4", "X", "S")
-
-ggplot(tpk.df, aes(x = X, y = EF0, group = S)) +
-  geom_line(color = "#EFF3FF") +
-  geom_line(aes(y = EF1), color = "#BDD7E7") +
-  geom_line(aes(y = EF2), color = "#6BAED6") +
-  geom_line(aes(y = EF3), color = "#3182BD") +
-  geom_line(aes(y = EF4), color = "#08519C") +
-  scale_y_continuous(limits = c(0, 1)) +
-  scale_x_continuous() +
-  xlab("Distance from city (m)") + ylab("Cumulative Proportion") +
-  theme_minimal()
-```
-
-Area plots.
-```{r}
-#p <- post.df[1, ]
-p <- colMeans(post.df)
-ak <- as.numeric(p[1:5])
-phi <-  p[10] * BSs + p[7] * dists[1]
-dk1 <- dordlogit( 1:5 , a = ak , phi = phi )
-
-phi <- p[10] * BSs + p[7] * dists[2]
-dk2 <- dordlogit( 1:5 , a = ak , phi = phi )
-
-dk <- c(dk1, dk2)
-
-tpk.df <- data.frame(dk,
-                     Dc = rep(c(0, 100000), each = 5),
-                     EF = factor(rep(c("0", "1", "2", "3", "4"), times = 2), 
-                                 levels = c("4", "3", "2", "1", "0")))
-
-ggplot(tpk.df, aes(x = Dc/1000, y = dk)) + 
-  geom_area(aes(fill = EF), color = "white") +
-  scale_fill_brewer(type = "seq", direction = -1) +
-  xlab("Distance from nearest city/town (km)") + ylab("Cumulative Proportion") +
-  theme_minimal() +
-  ggtitle(label = "Predicted proportion of tornadoes by EF category") 
-
-```
-
 
