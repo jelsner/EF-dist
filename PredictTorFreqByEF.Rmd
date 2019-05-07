@@ -306,7 +306,6 @@ Start by setting the family and the model formula. Get priors. Start with some d
 ```{r}
 library(brms)
 #load("fit.RData")
-#load("fit2.RData")
 df2$maxEF1 <- df2$maxEF + 1
 
 family <- brms::cumulative(threshold = "flexible")
@@ -341,12 +340,10 @@ fit <- brm(formula = formula,
 
 
 save(fit, file = "fit.RData")
-save(fit2, file = "fit2.RData")
-#out <- predict(post, probs = c(0, 1))
+out2 <- predict(fit, probs = c(0, 1))
 # stancode(post)
 
 fit.df <- posterior_samples(fit)
-fit2.df <- posterior_samples(fit2)
 ```
 
 Here we examine whether the effect of bulk shear is different for across different EF ratings.
@@ -356,7 +353,7 @@ family <- "sratio"
 fit3 <- brm(formula = formula,
             data = df2,
             family = family,
-            prior = c(set_prior("normal(0,5)", class = "b"),
+            prior = c(set_prior("normal(0,.55)", class = "b"),
                     set_prior("student_t(3, 0, 10)", class = "Intercept"),
                     set_prior("student_t(3, 0, 10)", class = "sd"),
                     set_prior("normal(-1, 2)", coef = "BSs")),
@@ -372,20 +369,20 @@ kfold <- kfold(fit, group = "id", chains = 1)
 
 ```{r}
 library(bayestestR)
-equivalence_test(fit2)
+equivalence_test(fit)
 ```
 
 ### Hypothesis test
 ```{r}
-summary(fit2)
+summary(fit)
 ```
 
 Test the hypothesis that bulk shear is more important that CAPE.
 ```{r}
-(hyp <- hypothesis(fit2, "BSs > CAPEs", class = "b"))
+(hyp <- hypothesis(fit, "BSs > CAPEs", class = "b"))
 plot(hyp)
 
-hypothesis(fit2, "BSs > 0", class = "b", group = "mo", scope = "coef")
+hypothesis(fit, "BSs > 0", class = "b", group = "mo", scope = "coef")
 ```
 
 #### Bulk shear
@@ -410,7 +407,7 @@ CINs <- 0
 
 tpk <- numeric()
 for ( s in 1:10 ) {
-    p <- fit2.df[s, ]
+    p <- fit.df[s, ]
     ak <- as.numeric(p[1:5])
     phi <- p$b_BSs * BSs
     pk <- rethinking::pordlogit( 1:5 , a = ak , phi = phi )
@@ -437,7 +434,7 @@ ggplot(tpk.df, aes(x = X, y = EF0, group = S)) +
 Area plots.
 ```{r}
 #p <- fit.df[1, ]
-p <- colMeans(fit2.df)
+p <- colMeans(fit.df)
 
 ak <- as.numeric(p[1:5])
 phi <- p[10] * BSs[1]
@@ -463,7 +460,7 @@ ggplot(tpk.df, aes(x = BS, y = dk)) +
 
 Marginal plot. Bulk shear.
 ```{r}
-gg <- marginal_effects(fit2, categorical = TRUE)
+gg <- marginal_effects(fit, categorical = TRUE)
 ggBS <- gg[[5]]
 levels(ggBS$cats__) <- c("0", "1", "2", "3", "4", "5")
 
