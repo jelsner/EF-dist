@@ -23,11 +23,11 @@ Motivation: Current lack of statistical guidance for forecasting outbreak charac
 
 Significant advances have been made in identifying environments supportive of individual supercell tornadoes (Rasmussen and Blanchard 1988, Hart and Korotky 1991, Davies 1993). More recently a logistic regression model was developed to predict the probability of at least one significant (EF2+) supercell tornado on days with at least one tornado-warned supercell using a similar set of environmental background variables (\cite{TogstadEtAl2011}).
 
-Ordered logistic regression to predict the probability distributions of tornado counts by EF rating. With distance to nearest city as a predictor we will be able to see how population shifts the distributions for example from EF0 to EF1 from EF1 to EF2. We know that the chance of getting an EF4+ tornado in the data set increases with the number of structures. What we don't know is by how much relative to an EF3.
+Ordered logistic regression to predict the probability distributions of tornado counts by EF rating. With distance to nearest city as a predictor variable we will be able to quantify how the potential number of damage targets shifts the distributions for example from EF0 to EF1 from EF1 to EF2. We know that the chance of getting an EF4+ tornado in the data set increases with the number of targets. What we don't know is by how much relative to an EF3.
 
 The study aims to (1) show the feasibility of forecasting a particular outbreak characteristic, (2) quantify the relationship between environmental factors and the probability of particular EF-level damage, and (3) demonstrate the flexibility of a modeling framework that can be applied in forecasting other characteristics.
 
-It should be noted that because the statistical model was fit to data exclusively from large clusters, the probability output is only valid when an outbreak occurs.
+It should be noted that because the statistical model is fit to data exclusively from large clusters, predicted probabilities are strictly valid only when an outbreak occurs.
 
 Load packages.
 ```{r}
