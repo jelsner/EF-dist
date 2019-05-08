@@ -471,15 +471,18 @@ center <- attr(BSs, "scaled:center")
 ggBS <- ggBS %>%
   mutate(BS = BSs * scale + center)
 
-ggplot(ggBS, aes(x = BS, y = estimate__, col = cats__)) +
+(p1 <- ggplot(ggBS, aes(x = BS, y = estimate__, col = cats__)) +
   geom_line() +
   geom_ribbon(aes(ymin = lower__, ymax = upper__, fill = cats__), 
               alpha = .7, col = NA) +
   scale_color_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Blues") +
   scale_fill_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Blues") +
+  scale_y_continuous(limits = c(0, 1)) +
   ylab("Relative Chance of a Tornado\nCausing EF-level Damage") +
   xlab("Bulk Shear (m/s)") +
+    ggtitle("A") +
   theme_minimal()
+)
 ```
 
 Marginal plot. Distance to nearest city.
@@ -517,14 +520,23 @@ center <- attr(CAPEs, "scaled:center")
 ggCAPE <- ggCAPE %>%
   mutate(CAPE = CAPEs * scale + center)
 
-ggplot(ggCAPE, aes(x = CAPE, y = estimate__, col = cats__)) +
+(p2 <- ggplot(ggCAPE, aes(x = CAPE, y = estimate__, col = cats__)) +
   geom_line() +
   geom_ribbon(aes(ymin = lower__, ymax = upper__, fill = cats__), 
               alpha = .7, col = NA) +
   scale_color_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Blues") +
   scale_fill_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Blues") +
+  scale_y_continuous(limits = c(0, 1)) +
   ylab("Relative Chance of a Tornado\nCausing EF-level Damage") +
   xlab("CAPE (J/kg)") +
+    ggtitle("B") +
   theme_minimal()
+)
 ```
+
+```{r}
+ggarrange(p1, p2)
+```
+**Marginal effect of bulk shear (A) and CAPE (B) on the distribution of tornadoes by maximum EF rating.**
+
 
