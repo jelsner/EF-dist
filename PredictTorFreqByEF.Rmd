@@ -17,13 +17,17 @@ Elsner/Schroder
 
 _Journal of Applied Meteorology and Climatology_
 
-The science of forecasting where an outbreak of severe convective weather might occur days in advance is well developed. For example, considerable skill exists in outlining what regions of the United States have the highest risk of severe weather on any given day. But more work is needed to anticipate specific characteristics of the outbreaks. Here we develop a statistical model that can be used to predict the probability distribution of tornado counts by EF rating on days expected to produce an outbreak. The model is fit using population centers to condition on the fact that damage ratings are related to the number (and type) of potential targets. The model quantifies the importance of this demographic information relative to information from environmental factors known to influence tornadoes, including CAPE and bulk shear. The model controls for distance to nearest city to quantify the percent increase in the chance of at least one tornado rated EF3 or higher for a unit increase in CAPE and bulk shear. The model is an ordered logistic regression and the coefficients are determined using the method of Hamiltonian Monte Carlo with the Stan language. Stan code is generated from R through the 'brms' package. The flexibility of this approach makes it easy to adjust the model to forecast other outbreak characteristics and to include domain-specific knowledge.
+The science of forecasting where an outbreak of severe convective weather might occur days in advance is well developed. For example, considerable skill exists in outlining what regions of the United States have the highest risk of severe weather on any given day. But more work is needed to quantify specific characteristics of the outbreaks. Here we develop a statistical model that can be used to predict the probability distribution of tornado counts by EF rating on days expected to produce an outbreak. The model is fit using population centers to condition on the fact that damage ratings are related to the number (and type) of potential targets. The model quantifies the importance of this demographic information relative to information from environmental factors known to influence tornadoes, including CAPE and bulk shear. The model controls for distance to nearest city to quantify the percent increase in the chance of at least one tornado rated EF3 or higher for a unit increase in CAPE and bulk shear. The model is an ordered logistic regression and the coefficients are determined using the method of Hamiltonian Monte Carlo with the Stan language. Stan code is generated from R through the 'brms' package. The flexibility of this approach makes it easy to adjust the model to forecast other outbreak characteristics and to include domain-specific knowledge.
 
-Motivation: Current lack of statistical guidance for forecasting outbreak characteristics. Is this true? Perhaps such tools can be used to better describe the threat and thus hopefully save lives.
+Motivation: Current lack of statistical guidance for forecasting outbreak characteristics. Perhaps such tools can be used to better describe the threat and thus hopefully save lives.
+
+Significant advances have been made in identifying environments supportive of individual supercell tornadoes (Rasmussen and Blanchard 1988, Hart and Korotky 1991, Davies 1993). More recently a logistic regression model was developed to predict the probability of at least one significant (EF2+) supercell tornado on days with at least one tornado-warned supercell using a similar set of environmental background variables (\cite{TogstadEtAl2011}).
 
 Ordered logistic regression to predict the probability distributions of tornado counts by EF rating. With distance to nearest city as a predictor we will be able to see how population shifts the distributions for example from EF0 to EF1 from EF1 to EF2. We know that the chance of getting an EF4+ tornado in the data set increases with the number of structures. What we don't know is by how much relative to an EF3.
 
-The study aims to show: (1) the feasibility of forecasting a particular outbreak characteristic, and (2) the flexibility of a modeling framework that can be applied in forecasting other characteristics.
+The study aims to (1) show the feasibility of forecasting a particular outbreak characteristic, (2) quantify the relationship between environmental factors and the probability of particular EF-level damage, and (3) demonstrate the flexibility of a modeling framework that can be applied in forecasting other characteristics.
+
+It should be noted that because the statistical model was fit to data exclusively from large clusters, the probability output is only valid when an outbreak occurs.
 
 Load packages.
 ```{r}
@@ -33,7 +37,7 @@ library(dplyr)
 library(ggplot2)
 ```
 
-Load the data. The study uses the data collated in the `tor-cluster` GitHub project. The methodology for determining the big cluster days is detailed in Schroder and Elsner (2019). Briefly, the method groups tornadoes occurring in the period 1994 through 2017 based on space-time distances between genesis locations. If two tornadoes occur close together in space and time, they are grouped together in a cluster. Grouping stops when the the space-time distance threshold exceeds 50K meter-seconds.
+Load the data. The study uses the data collated in the `tor-cluster` GitHub project. The methodology for determining the big cluster days is detailed in Schroder and Elsner (2019). Briefly, the method groups tornadoes occurring in the period 1994 through 2017 based on space-time distances between genesis locations. If two tornadoes occur close in space and time, they are grouped into a cluster. Grouping stops when the the space-time distance threshold exceeds 50K meter-seconds.
 ```{r}
 load("~/Desktop/Projects/EF-dist/BigDays.RData")
 st_crs(Torn.sfT)
@@ -99,14 +103,14 @@ ggplot(BigDays.sfdfT, aes(x = nT)) +
   theme_minimal() 
 ```
 
-We join the environmental variables at the cluster-level with the data at the tornado level.
+We join the environmental variables at the cluster-level with the data at the tornado level. The environmental variables are from the North American Regional Reanalysis (NARR). The NARR is a 32.4 km grid and uses a combination of model and observational sounding data.
 ```{r}
 df <- as.data.frame(BigDays.sfdfT) %>%
   select(ID, maxCAPE, maxHLCY, minCIN, maxBS, maxSM) %>%
   left_join(as.data.frame(Torn.sfT), by = "ID")
 ```
 
-Compute the distance to nearest city/town.
+For each tornado we compute the distance to the nearest city/town. This distance serves as a proxy for the potential number of damage targets. Tornadoes occurring close to towns or cities (short distances) will, on average, have a much higher number of nearby targets.
 ```{r}
 library(USAboundaries)
 
