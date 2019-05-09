@@ -37,7 +37,7 @@ library(dplyr)
 library(ggplot2)
 ```
 
-Load the data. The study uses the data collated in the `tor-cluster` GitHub project. The methodology for determining the big days is detailed in Schroder and Elsner (2019). Briefly, the method groups tornadoes occurring in the period 1994 through 2017 based on space-time distances between genesis locations. If two tornadoes occur close in space and time, they are grouped together. Grouping stops when the the space-time distance threshold exceeds 50K meter-seconds.
+Load the data. The study uses the data collated in the `tor-cluster` GitHub project. The method for determining the big days is detailed in Schroder and Elsner (2019). Briefly, it groups tornadoes occurring in the period 1994 through 2017 based on space-time distances between genesis locations. If two tornadoes occur close in space and time, they are grouped together. The procedure stops when the the space-time distance threshold exceeds 50K meter-seconds.
 ```{r}
 load("~/Desktop/Projects/EF-dist/BigDays.RData")
 st_crs(Torn.sfT)
@@ -116,7 +116,7 @@ df <- as.data.frame(BigDays.sfdfT) %>%
   left_join(as.data.frame(Torn.sfT), by = "ID")
 ```
 
-For each tornado we compute the distance to the nearest city/town. This distance serves as a proxy for the potential number of damage targets. Tornadoes occurring close to towns or cities (short distances) will, on average, have a much higher number of nearby targets.
+For each tornado we compute the distance to the nearest city/town. Distance-to-nearest city/town serves as a proxy for the potential number of damage targets. Tornadoes occurring close to towns or cities (short distances) will, on average, have a much higher number of nearby targets.
 ```{r}
 library(USAboundaries)
 
@@ -347,8 +347,6 @@ fit <- brm(formula = formula,
 #           control = list(max_treedepth = 15),
            seed = 9121)
 
-
-
 save(fit, file = "fit.RData")
 out2 <- predict(fit, probs = c(0, 1))
 # stancode(post)
@@ -356,7 +354,7 @@ out2 <- predict(fit, probs = c(0, 1))
 fit.df <- posterior_samples(fit)
 ```
 
-Here we examine whether the effect of bulk shear is different for across different EF ratings.
+Here we examine whether the effect of bulk shear is different across different EF ratings.
 ```{r, eval=FALSE}
 formula <- maxEF1 ~ Yrs + dists + CAPEs + HLCYs + cs(BSs) + CINs  + (1|id)
 family <- "sratio"
