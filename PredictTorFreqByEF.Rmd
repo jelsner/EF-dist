@@ -17,7 +17,7 @@ Elsner/Schroder
 
 _Journal of Applied Meteorology and Climatology_
 
-The science of forecasting where an outbreak of severe convective weather might occur days in advance is well developed. For example, considerable skill exists in outlining what regions of the United States have the highest risk of severe weather on any given day. But more work is needed to quantify specific characteristics of the outbreaks. Here we develop a statistical model that can be used to predict the probability distribution of tornado counts by EF rating on days expected to produce an outbreak. The model is fit using population centers to condition on the fact that damage ratings are related to the number (and type) of potential targets. The model quantifies the importance of this demographic information relative to information from environmental factors known to influence tornadoes, including CAPE and bulk shear. The model controls for distance to nearest city to quantify the percent increase in the chance of at least one tornado rated EF3 or higher for a unit increase in CAPE and bulk shear. The model is an ordered logistic regression and the coefficients are determined using the method of Hamiltonian Monte Carlo with the Stan language. Stan code is generated from R through the 'brms' package. The flexibility of this approach makes it easy to adjust the model to forecast other outbreak characteristics and to include domain-specific knowledge.
+The science of forecasting days in advance where an outbreak of severe convective weather might occur is well developed. For example, considerable skill exists in outlining what regions of the United States have the highest risk of severe weather on any given day. But more work is needed to forecast specific characteristics of the outbreaks. Here we develop a statistical model that can be used to predict the probability distribution of tornado counts by EF rating on days expected to produce an outbreak. The model is fit using population centers to condition on the fact that damage ratings are related to the number (and type) of potential targets. The model quantifies the importance of this demographic information relative to information from environmental factors known to influence tornadoes, including CAPE and bulk shear. The model controls for distance to nearest city to quantify the percent increase in the chance of at least one tornado rated EF3 or higher for a unit increase in CAPE and bulk shear. The model is an ordered logistic regression and the coefficients are determined using the method of Hamiltonian Monte Carlo with the Stan language. Stan code is generated from R through the 'brms' package. The flexibility of this approach makes it easy to adjust the model to forecast other outbreak characteristics and to include domain-specific knowledge.
 
 Motivation: Current lack of statistical guidance for forecasting outbreak characteristics. Perhaps such tools can be used to better describe the threat and thus hopefully save lives.
 
@@ -27,7 +27,7 @@ Ordered logistic regression to predict the probability distributions of tornado 
 
 The study aims to (1) show the feasibility of forecasting a particular outbreak characteristic, (2) quantify the relationship between environmental factors and the probability of particular EF-level damage, and (3) demonstrate the flexibility of a modeling framework that can be applied in forecasting other characteristics.
 
-It should be noted that because the statistical model is fit to data exclusively from large clusters, predicted probabilities are strictly valid only when an outbreak occurs.
+It should be noted that because the statistical model is fit to data exclusively from large groups of tornadoes, predicted probabilities are strictly valid only when an outbreak occurs.
 
 Load packages.
 ```{r}
@@ -37,16 +37,18 @@ library(dplyr)
 library(ggplot2)
 ```
 
-Load the data. The study uses the data collated in the `tor-cluster` GitHub project. The methodology for determining the big cluster days is detailed in Schroder and Elsner (2019). Briefly, the method groups tornadoes occurring in the period 1994 through 2017 based on space-time distances between genesis locations. If two tornadoes occur close in space and time, they are grouped into a cluster. Grouping stops when the the space-time distance threshold exceeds 50K meter-seconds.
+Load the data. The study uses the data collated in the `tor-cluster` GitHub project. The methodology for determining the big days is detailed in Schroder and Elsner (2019). Briefly, the method groups tornadoes occurring in the period 1994 through 2017 based on space-time distances between genesis locations. If two tornadoes occur close in space and time, they are grouped together. Grouping stops when the the space-time distance threshold exceeds 50K meter-seconds.
 ```{r}
 load("~/Desktop/Projects/EF-dist/BigDays.RData")
 st_crs(Torn.sfT)
 st_crs(BigDays.sfdfT)
+
+load("~/Desktop/Projects/EF-dist/BigDays2.RData")
 ```
 
-The simple feature `BigDays.sfdfT` contains cluster-level data including environmental variables. The simple feature `Torn.sfT` contains tornado-level data for all tornadoes on the big days. Note: they have different CRSs.
+The simple feature `BigDays.sfdfT` contains group-level data including environmental variables. The simple feature `Torn.sfT` contains tornado-level data for all tornadoes on the big days. Note: they have different CRSs.
 
-A map of one tornado group.
+A map of one tornado group used in this study.
 ```{r}
 library(USAboundaries)
 ctys <- us_counties()
@@ -78,13 +80,13 @@ tm_scale_bar(position = c("left", "bottom")) +
 tm_layout(title = "April 26, 1994")
 ```
 
-Distribution of clusters by month.
+Distribution of tornado groups by month.
 ```{r}
 ggplot(BigDays.sfdfT, aes(x = as.factor(Month))) +
   geom_bar(fill = "gray70") +
   scale_x_discrete(labels = month.name) +
   scale_y_continuous(limits = c(0, NA)) +
-  ylab("Number of Clusters\nWith At Least 10 Tornadoes") + xlab("") +
+  ylab("Number of Tornado Groups\nWith At Least 10 Tornadoes") + xlab("") +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
@@ -93,17 +95,21 @@ ggplot(BigDays.sfdfT, aes(x = Month)) +
   scale_x_continuous(breaks = seq(1, 12, 1), labels = month.abb) +
   scale_y_continuous(limits = c(0, NA)) +
   coord_polar(start = 0) +
-  labs(x = "Month", y = "Number of Clusters\nWith At Least 10 Tornadoes") +
+  labs(x = "Month", y = "Number of Tornado Groups\nWith At Least 10 Tornadoes") +
   theme_minimal()
 
 ggplot(BigDays.sfdfT, aes(x = nT)) +
   geom_histogram(fill = "gray70", binwidth = 5) +
   scale_y_continuous(limits = c(0, NA)) +
-  ylab("Number of Clusters") + xlab("Number of Tornadoes") +
+  ylab("Number of Groups") + xlab("Number of Tornadoes") +
   theme_minimal() 
 ```
 
-We join the environmental variables at the cluster-level with the data at the tornado level. The environmental variables are from the North American Regional Reanalysis (NARR). The NARR is a 32.4 km grid and uses a combination of model and observational sounding data.
+We join the environmental variables at the group-level with the data at the tornado level.
+
+Given a group of at least ten tornadoes within a single convective 24-hour period, we extract environmental variables from the North American Regional Reanalysis (NARR) obtained from the the National Center for Atmospheric Research (NCAR). Variables are available on a 32.4 km grid and represent of a blend of model and observational sounding data.
+
+We use the 3-hourly files that contain environmental data for each day ranging from 0Z to 21Z in 3-hour increments. For each tornado group, we calculate the closest 3-hour time before the occurrence of the first tornado. We pick a time before the event starts because we want to sample the pre-storm environment. We use tornado groups occurring between January 1994 and December 2017 resulting in a total of 16,504 tornadoe in 212 groups.
 ```{r}
 df <- as.data.frame(BigDays.sfdfT) %>%
   select(ID, maxCAPE, maxHLCY, minCIN, maxBS, maxSM) %>%
