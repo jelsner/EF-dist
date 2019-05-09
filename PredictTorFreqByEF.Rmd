@@ -312,7 +312,7 @@ df2$id <- id
 
 Use the **brms** package.
 
-Start by setting the family and the model formula. Get priors. Start with some default priors (for example "normal(0,5)" for the class = "b"). Sample from the priors and check the predictive distribution of the response. Adjust the priors accordingly.
+Start by setting the family and the model formula. Get priors. Start with some default priors (for example "normal(0,5)" for the class = "b"). Sample from the priors and check the predictive distribution of the response. Adjust the priors accordingly. https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations
 ```{r}
 library(brms)
 #load("fit.RData")
@@ -327,11 +327,11 @@ prior <- brm(formula = formula,
            data = df2,
            family = family,
            prior = c(set_prior("normal(0,.5)", class = "b"),
-                    set_prior("student_t(1, 0, 10)", class = "Intercept"),
-                    set_prior("student_t(1, 0, 10)", class = "sd")),
+                    set_prior("student_t(7, 0, 10)", class = "Intercept"),
+                    set_prior("student_t(7, 0, 10)", class = "sd")),
            sample_prior = "only",
-           control = list(max_treedepth = 15),
-           seed = 9112)
+#           control = list(max_treedepth = 15),
+           seed = 9121)
 
 out <- predict(prior, probs = c(0, 1))
 ```
@@ -342,9 +342,9 @@ fit <- brm(formula = formula,
            data = df2,
            family = family,
            prior = c(set_prior("normal(0,.5)", class = "b"),
-                    set_prior("student_t(3, 0, 10)", class = "Intercept"),
-                    set_prior("student_t(3, 0, 10)", class = "sd")),
-           control = list(max_treedepth = 15),
+                    set_prior("student_t(7, 0, 10)", class = "Intercept"),
+                    set_prior("student_t(7, 0, 10)", class = "sd")),
+#           control = list(max_treedepth = 15),
            seed = 9121)
 
 
