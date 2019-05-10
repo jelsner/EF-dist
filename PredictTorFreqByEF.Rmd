@@ -408,20 +408,26 @@ fit2 <- brm(formula = formula2,
            seed = 9521)
 
 fixef(fit2)
+#save(fit2, file = "fit2.RData")
+
+library(bayestestR)
+equivalence_test(fit2)
 ```
+There is no evidence to support an interaction between BS and CAPE.
 
 Here we examine whether the effect of bulk shear is different across different EF ratings.
 ```{r, eval=FALSE}
-formula <- maxEF1 ~ Yrs + dists + CAPEs + HLCYs + cs(BSs) + CINs  + (1|id)
+formula <- maxEF1 ~ Yrs + dists + CAPEs + HLCYs + cs(BSs) + CINs + (1|mo) + (1|id)
 family <- "sratio"
 fit3 <- brm(formula = formula,
             data = df2,
             family = family,
-            prior = c(set_prior("normal(0,.55)", class = "b"),
+            prior = c(set_prior("normal(0, 1)", class = "b"),
                     set_prior("student_t(3, 0, 10)", class = "Intercept"),
                     set_prior("student_t(3, 0, 10)", class = "sd"),
                     set_prior("normal(-1, 2)", coef = "BSs")),
              seed = 9112)
+fixef(fit3)
 ```
 Apparently not. The uncertainty bounds on the estimates overlap.
 
@@ -429,11 +435,6 @@ Cross validation. This takes a very long time.
 ```{r, eval=FALSE}
 kfold1 <- kfold(fit, folds = "stratified", group = "id")
 kfold <- kfold(fit, group = "id", chains = 1) 
-```
-
-```{r}
-library(bayestestR)
-equivalence_test(fit1)
 ```
 
 ### Hypothesis test
