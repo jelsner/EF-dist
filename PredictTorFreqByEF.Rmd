@@ -43,7 +43,7 @@ load("~/Desktop/Projects/EF-dist/BigDays.RData")
 st_crs(Torn.sfT)
 st_crs(BigDays.sfdfT)
 
-load("~/Desktop/Projects/EF-dist/BigDays2.RData")
+#load("~/Desktop/Projects/EF-dist/BigDays2.RData")
 ```
 
 The simple feature `BigDays.sfdfT` contains group-level data including environmental variables. The simple feature `Torn.sfT` contains tornado-level data for all tornadoes on the big days. Note: they have different CRSs.
@@ -291,6 +291,12 @@ $$
 
 The form ensures the correct ordering of the EF ratings while allowing for changes in the likelihood of each individual value as the predictor $x_i$ changes value. As the log-cumulative odds of every EF value ($k$) below the maximum decreases, the probability mass shifts upwards toward higher EF ratings. This is analogous to what happens in quantile regression (see \cite{JaggerElsner2009}).
 
+\[
+\phi_i = \beta_{Year}Year_i + \beta_D D_i + \beta_{CAPE}CAPE_i + \beta_{HLCY}HLCY_i + \beta_{BS} BS_i + \beta_{CIN}CIN_i + \beta_M M_i + \beta_G G_i
+\]
+
+where Year_i indicates the year of tornado i and D_i indicates the distance of tornado i to the nearest town/city. CAPE_i, HLCY_i, BS_i, and CIN_i indicate the values of the corresponding environmental variables from the group assigned to tornado i. All tornadoes within the group are given the same value. Month (M_i) and group (G_i) are random offset effects so the coefficients (\beta_M and \beta_G) are vectors of length 12 and 212, respectively. 
+
 Create scaled predictor variables.
 ```{r}
 df2$Yrs <- scale(df2$Year)
@@ -303,55 +309,105 @@ df2$CINs <- scale(df2$minCIN)
 
 ### Mixed effects model
 
-Cluster number indexed from 1 to number of clusters.
+Group number indexed from 1 to number of groups.
 ```{r}
 nT <- as.vector(table(df2$ID))
 id <- rep(1:length(nT), times = nT)
 df2$id <- id
+df2$maxEF1 <- df2$maxEF + 1 # can not use 0
 ```
 
 Use the **brms** package.
 
-Start by setting the family and the model formula. Get priors. Start with some default priors (for example "normal(0,5)" for the class = "b"). Sample from the priors and check the predictive distribution of the response. Adjust the priors accordingly. https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations
+Start by setting the family and the model formula. Get priors. 
 ```{r}
 library(brms)
-#load("fit.RData")
-df2$maxEF1 <- df2$maxEF + 1
-
 family <- brms::cumulative(threshold = "flexible")
-formula <- maxEF1 ~ Yrs + dists + CAPEs + HLCYs + BSs + CINs  + (1|mo) + (1|id)
+formula <- maxEF1 ~ 1
 
 get_prior(formula, data = df2, family = family)
 
 prior <- brm(formula = formula,
            data = df2,
            family = family,
-           prior = c(set_prior("normal(0,.5)", class = "b"),
-                    set_prior("student_t(7, 0, 10)", class = "Intercept"),
-                    set_prior("student_t(7, 0, 10)", class = "sd")),
+           prior = set_prior("student_t(7, 0, 10)", class = "Intercept"),
            sample_prior = "only",
-#           control = list(max_treedepth = 15),
+           seed = 9121)
+prior_out <- predict(prior, probs = c(0, 1))
+head(prior_out)
+
+fit0 <- brm(formula = formula,
+           data = df2,
+           family = family,
+           prior = set_prior("student_t(7, 0, 10)", class = "Intercept"),
+           seed = 9121)
+fixef(fit0)
+
+fit0_out <- predict(fit0, probs = c(0, 1))
+head(fit0_out)
+```
+
+Since there are a lot of tornadoes, the posterior for each intercept is quite precisely estimated, as we can see from the small standard deviations. To get cumulative probabilities back:
+```{r}
+logistic(fixef(fit0))
+```
+
+These are the same (nearly) as the values in cum_pr_k that we computed above. But now we also have a posterior distribution around these values, and we’re ready to add predictor variables to the model.
+
+Model with predictors. Start with some default priors (for example "normal(0,5)" for the class = "b"). Sample from the priors and check the predictive distribution of the response. Adjust the priors accordingly. https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations
+```{r}
+family <- brms::cumulative(threshold = "flexible")
+formula <- maxEF1 ~ Yrs + dists + CAPEs + HLCYs + BSs + CINs  + (1|mo) + (1|id)
+
+get_prior(formula, data = df2, family = family)
+
+prior2 <- brm(formula = formula,
+           data = df2,
+           family = family,
+           prior = c(set_prior("normal(0, 1)", class = "b"),
+                     set_prior("student_t(3, 0, 10)", class = "Intercept"),
+                     set_prior("student_t(3, 0, 10)", class = "sd")),
+           sample_prior = "only",
            seed = 9121)
 
-out <- predict(prior, probs = c(0, 1))
+prior_out2 <- predict(prior2, probs = c(0, 1))
 ```
+
+With normal(0, 5) the probabilities are highest for the first and sixth categories. This u-shaped distribution is diminished by using normal(0, 1). Making the standard deviation smaller introduces divergent transitions.
 
 Fit the model.
 ```{r}
-fit <- brm(formula = formula,
-           data = df2,
-           family = family,
-           prior = c(set_prior("normal(0,.5)", class = "b"),
-                    set_prior("student_t(7, 0, 10)", class = "Intercept"),
-                    set_prior("student_t(7, 0, 10)", class = "sd")),
+fit1 <- brm(formula = formula,
+            data = df2,
+            family = family,
+            prior = c(set_prior("normal(0, 1)", class = "b"),
+                     set_prior("student_t(3, 0, 10)", class = "Intercept"),
+                     set_prior("student_t(3, 0, 10)", class = "sd")),
 #           control = list(max_treedepth = 15),
            seed = 9121)
 
-save(fit, file = "fit.RData")
-out2 <- predict(fit, probs = c(0, 1))
-# stancode(post)
+fixef(fit1)
 
-fit.df <- posterior_samples(fit)
+#save(fit1, file = "fit.RData")
+fit1_out <- predict(fit1, probs = c(0, 1))
+# stancode(fit1)
+
+fit1.df <- posterior_samples(fit1)
+```
+
+Examine potential interaction between BS and CAPE.
+```{r}
+formula2 <- maxEF1 ~ Yrs + dists + BSs * CAPEs + HLCYs + CINs  + (1|mo) + (1|id)
+
+fit2 <- brm(formula = formula2,
+            data = df2,
+            family = family,
+            prior = c(set_prior("normal(0, 1)", class = "b"),
+                     set_prior("student_t(3, 0, 10)", class = "Intercept"),
+                     set_prior("student_t(3, 0, 10)", class = "sd")),
+           seed = 9521)
+
+fixef(fit2)
 ```
 
 Here we examine whether the effect of bulk shear is different across different EF ratings.
@@ -377,20 +433,20 @@ kfold <- kfold(fit, group = "id", chains = 1)
 
 ```{r}
 library(bayestestR)
-equivalence_test(fit)
+equivalence_test(fit1)
 ```
 
 ### Hypothesis test
 ```{r}
-summary(fit)
+summary(fit1)
 ```
 
 Test the hypothesis that bulk shear is more important that CAPE.
 ```{r}
-(hyp <- hypothesis(fit, "BSs > CAPEs", class = "b"))
+(hyp <- hypothesis(fit1, "BSs > CAPEs", class = "b"))
 plot(hyp)
 
-hypothesis(fit, "BSs > 0", class = "b", group = "mo", scope = "coef")
+hypothesis(fit1, "BSs > 0", class = "b", group = "mo", scope = "coef")
 ```
 
 #### Bulk shear
