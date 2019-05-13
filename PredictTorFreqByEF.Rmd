@@ -91,13 +91,13 @@ ggplot(BigDays.sfdfT, aes(x = as.factor(Month))) +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-ggplot(BigDays.sfdfT, aes(x = Month)) +
+( p0 <- ggplot(BigDays.sfdfT, aes(x = Mo)) +
   geom_bar(fill = "gray70") +
   scale_x_continuous(breaks = seq(1, 12, 1), labels = month.abb) +
   scale_y_continuous(limits = c(0, NA)) +
   coord_polar(start = 0) +
   labs(x = "Month", y = "Number of Tornado Groups\nWith At Least 10 Tornadoes") +
-  theme_minimal()
+  theme_minimal() )
 
 ggplot(BigDays.sfdfT, aes(x = nT)) +
   geom_histogram(fill = "gray70", binwidth = 5) +
@@ -105,6 +105,7 @@ ggplot(BigDays.sfdfT, aes(x = nT)) +
   ylab("Number of Groups") + xlab("Number of Tornadoes") +
   theme_minimal() 
 ```
+### Figure: Monthly distribution of big groups.
 
 We join the environmental variables at the group-level with the data at the tornado level.
 
@@ -576,8 +577,10 @@ ggDist <- ggDist %>%
               alpha = .7, col = NA) +
   scale_color_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Blues") +
   scale_fill_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Blues") +
+  scale_y_continuous(limits = c(0, 1)) +
   ylab("Relative Chance of a Tornado\nCausing EF-level Damage") +
   xlab("Distance to nearest city (km)") +
+    ggtitle("C") +
   theme_minimal() )
 ```
 
@@ -593,7 +596,7 @@ center <- attr(CAPEs, "scaled:center")
 ggCAPE <- ggCAPE %>%
   mutate(CAPE = CAPEs * scale + center)
 
-(p2 <- ggplot(ggCAPE, aes(x = CAPE, y = estimate__, col = cats__)) +
+( p7 <- ggplot(ggCAPE, aes(x = CAPE, y = estimate__, col = cats__)) +
   geom_line() +
   geom_ribbon(aes(ymin = lower__, ymax = upper__, fill = cats__), 
               alpha = .7, col = NA) +
@@ -603,13 +606,40 @@ ggCAPE <- ggCAPE %>%
   ylab("Relative Chance of a Tornado\nCausing EF-level Damage") +
   xlab("CAPE (J/kg)") +
     ggtitle("B") +
-  theme_minimal()
-)
+  theme_minimal() )
+```
+
+Marginal plot. Helicity.
+```{r}
+ggHLCY <- gg[[4]]
+levels(ggHLCY$cats__) <- c("0", "1", "2", "3", "4", "5")
+
+HLCYs <- scale(df2$maxHLCY)
+scale <- attr(HLCYs, "scaled:scale")
+center <- attr(HLCYs, "scaled:center")
+
+ggHLCY <- ggHLCY %>%
+  mutate(HLCY = HLCYs * scale + center)
+
+( p8 <- ggplot(ggHLCY, aes(x = HLCY, y = estimate__, col = cats__)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = lower__, ymax = upper__, fill = cats__), 
+              alpha = .7, col = NA) +
+  scale_color_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Blues") +
+  scale_fill_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Blues") +
+  scale_y_continuous(limits = c(0, 1)) +
+  ylab("Relative Chance of a Tornado\nCausing EF-level Damage") +
+  xlab("Storm Relative Heliciy (J/kg)") +
+    ggtitle("D") +
+  theme_minimal() )
 ```
 
 ```{r}
-ggarrange(p1, p2)
+ggarrange(p5, p7, p6, p8)
 ```
-**Marginal effect of bulk shear (A) and CAPE (B) on the distribution of tornadoes by maximum EF rating.**
+### Figure: Marginal effects of the covariates. (A) Bulk shear, CAPE (B), (C) distance to nearest town, and (D) storm relative helicity.
 
-
+Add some specific numbers. Make predictions with the predict() function specifying values.
+```{r}
+predict(fit1, newdata = data.frame(Yrs = 0, dists = 0, CAPEs = 0, HLCYs= 0, BSs = 0, CINs = 0, mo = 1:12, id = 5))
+```
