@@ -79,6 +79,7 @@ tm_compass(position = c("left", "bottom")) +
 tm_scale_bar(position = c("left", "bottom")) +
 tm_layout(title = "April 26, 1994")
 ```
+### Figure: Map of one tornado group used in this study.
 
 Distribution of tornado groups by month.
 ```{r}
@@ -182,7 +183,7 @@ table(df2$maxEF)/dim(df2)[1]
 load("~/Desktop/Projects/EF-dist/BigDaysInLargeGroups.RData") # Note the file BigDays.sfdfT now is only days within a large group
 table(All_Tornadoes$mag)/nrow(All_Tornadoes)
 ```
-**Histogram of tornadoes by maximum EF rating. Only tornadoes occurring in large clusters are considered (see text).**
+### Figure: Histogram of tornadoes by maximum EF rating. Only tornadoes occurring in large clusters are considered (see text).
 
 As expected the histogram by EF rating on large cluster days shows that the vast majority of tornadoes are rated EF0 or EF1 with far fewer rated EF4 or EF5. But relative to all tornadoes the distribution favors higher ratings. For example, 3.5\% of big outbreak day tornadoes are rated EF3 compared with 2.3\% of all tornadoes. And .08\% of big outbreak day tornadoes are rated EF5 compared with .05\% of all tornadoes. 
 
@@ -210,7 +211,6 @@ plot.df <- data.frame(maxEF = 0:5, pr_k, cum_pr_k, cum_pr_k_all)
   theme_minimal()
 )
 ```
-**Cumulative proportion of tornadoes by maximum EF rating for all tornadoes (gray) and for tornadoes occurring in large clusters (black)**
 
 Then to re-describe the histogram as log-cumulative odds, we need a series of intercept parameters. Each intercept will be on the log-cumulative-odds scale and stand in for the cumulative probability of each rating.
 $$
@@ -239,7 +239,7 @@ plot.df$lco_all <- lco_all
   theme_minimal()
 )
 ```
-**Log-cumulative odds of a tornado by maximum EF rating for all tornadoes (gray) and for tornadoes occurring in large clusters (black)**
+### Figure: Log-cumulative odds of a tornado by maximum EF rating for all tornadoes (gray) and for tornadoes occurring in large clusters (black)**
 
 Note that the cumulative logit for the highest EF rating is infinity. This is because log(1/(1 - 1)) = $\infty$. This is always the case so we do not need a parameter for it. We get it for free from the law of total probability. So for $K$ = 6 possible maximum EF ratings we only need $K$ - 1 = 5 intercepts.
 
@@ -428,8 +428,9 @@ fit3 <- brm(formula = formula,
                     set_prior("normal(-1, 2)", coef = "BSs")),
              seed = 9112)
 fixef(fit3)
+#save(fit3, file = "fit3.RData")
 ```
-Apparently not. The uncertainty bounds on the estimates overlap.
+Apparently not. The uncertainty bounds on the estimates overlap across the EF ratings.
 
 Cross validation. This takes a very long time.
 ```{r, eval=FALSE}
@@ -472,7 +473,7 @@ CINs <- 0
 
 tpk <- numeric()
 for ( s in 1:10 ) {
-    p <- fit.df[s, ]
+    p <- fit1.df[s, ]
     ak <- as.numeric(p[1:5])
     phi <- p$b_BSs * BSs
     pk <- rethinking::pordlogit( 1:5 , a = ak , phi = phi )
@@ -484,7 +485,7 @@ tpk.df$X <- rep(c(15, 45), times = 10)
 tpk.df$S <- rep(1:10, each = 2)
 names(tpk.df) <- c("EF0", "EF1", "EF2", "EF3", "EF4", "X", "S")
 
-ggplot(tpk.df, aes(x = X, y = EF0, group = S)) +
+( p3 <- ggplot(tpk.df, aes(x = X, y = EF0, group = S)) +
   geom_line(color = "#EFF3FF") +
   geom_line(aes(y = EF1), color = "#BDD7E7") +
   geom_line(aes(y = EF2), color = "#6BAED6") +
@@ -493,13 +494,14 @@ ggplot(tpk.df, aes(x = X, y = EF0, group = S)) +
   scale_y_continuous(limits = c(0, 1)) +
   scale_x_continuous() +
   xlab("Bulk Shear (m/s)") + ylab("Cumulative Proportion") +
-  theme_minimal()
+  ggtitle(label = "A") +
+  theme_minimal() )
 ```
 
 Area plots.
 ```{r}
 #p <- fit.df[1, ]
-p <- colMeans(fit.df)
+p <- colMeans(fit1.df)
 
 ak <- as.numeric(p[1:5])
 phi <- p[10] * BSs[1]
@@ -515,17 +517,23 @@ tpk.df <- data.frame(dk,
                      EF = factor(rep(c("0", "1", "2", "3", "4"), times = 2), 
                                  levels = c("4", "3", "2", "1", "0")))
 
-ggplot(tpk.df, aes(x = BS, y = dk)) + 
+( p4 <- ggplot(tpk.df, aes(x = BS, y = dk)) + 
   geom_area(aes(fill = EF), color = "white") +
   scale_fill_brewer(type = "seq", direction = -1) +
   xlab("Bulk Shear (m/s)") + ylab("Cumulative Proportion") +
   theme_minimal() +
-  ggtitle(label = "Predicted proportion of tornadoes by EF category") 
+  ggtitle(label = "B") 
+    )
+
+ggarrange(p3, p4)
 ```
+### Figure: Predicted proportion of tornadoes by EF category. A. Predictions from the first 10 posterior samples. B. Predictions based on the average over 4000 posterior samples.
+
+Another way to examine the model results is to display the marginal effects. Here we examine the marginal effect of bulk shear. We use the mean value for all the other covariates.
 
 Marginal plot. Bulk shear.
 ```{r}
-gg <- marginal_effects(fit, categorical = TRUE)
+gg <- marginal_effects(fit1, categorical = TRUE)
 ggBS <- gg[[5]]
 levels(ggBS$cats__) <- c("0", "1", "2", "3", "4", "5")
 
@@ -536,7 +544,7 @@ center <- attr(BSs, "scaled:center")
 ggBS <- ggBS %>%
   mutate(BS = BSs * scale + center)
 
-(p1 <- ggplot(ggBS, aes(x = BS, y = estimate__, col = cats__)) +
+( p5 <- ggplot(ggBS, aes(x = BS, y = estimate__, col = cats__)) +
   geom_line() +
   geom_ribbon(aes(ymin = lower__, ymax = upper__, fill = cats__), 
               alpha = .7, col = NA) +
@@ -546,8 +554,8 @@ ggBS <- ggBS %>%
   ylab("Relative Chance of a Tornado\nCausing EF-level Damage") +
   xlab("Bulk Shear (m/s)") +
     ggtitle("A") +
-  theme_minimal()
-)
+  theme_minimal() )
+
 ```
 
 Marginal plot. Distance to nearest city.
@@ -562,7 +570,7 @@ center <- attr(dists, "scaled:center")
 ggDist <- ggDist %>%
   mutate(dist = dists * scale + center)
 
-ggplot(ggDist, aes(x = dist/1000, y = estimate__, col = cats__)) +
+( p6 <- ggplot(ggDist, aes(x = dist/1000, y = estimate__, col = cats__)) +
   geom_line() +
   geom_ribbon(aes(ymin = lower__, ymax = upper__, fill = cats__), 
               alpha = .7, col = NA) +
@@ -570,7 +578,7 @@ ggplot(ggDist, aes(x = dist/1000, y = estimate__, col = cats__)) +
   scale_fill_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Blues") +
   ylab("Relative Chance of a Tornado\nCausing EF-level Damage") +
   xlab("Distance to nearest city (km)") +
-  theme_minimal()
+  theme_minimal() )
 ```
 
 Marginal plot. CAPE.
