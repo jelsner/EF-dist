@@ -43,7 +43,7 @@ load("~/Desktop/Projects/EF-dist/BigDays.RData")
 st_crs(Torn.sfT)
 st_crs(BigDays.sfdfT)
 
-load("~/Desktop/Projects/EF-dist/BigDays2.RData")
+#load("~/Desktop/Projects/EF-dist/BigDays2.RData")
 ```
 
 The simple feature `BigDays.sfdfT` contains group-level data including environmental variables. The simple feature `Torn.sfT` contains tornado-level data for all tornadoes on the big days. Note: they have different CRSs.
