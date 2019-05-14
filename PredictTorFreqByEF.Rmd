@@ -37,7 +37,7 @@ library(dplyr)
 library(ggplot2)
 ```
 
-Load the data. The study uses the data collated in the `tor-cluster` GitHub project. The methodology for determining the big days is detailed in Schroder and Elsner (2019). Briefly, the method groups tornadoes occurring in the period 1994 through 2017 based on space-time distances between genesis locations. If two tornadoes occur close in space and time, they are grouped together. Grouping stops when the the space-time distance threshold exceeds 50K meter-seconds.
+Load the data. The study uses the data collated in the `tor-cluster` GitHub project. The method for determining the big days is detailed in Schroder and Elsner (2019). Briefly, it groups tornadoes occurring in the period 1994 through 2017 based on space-time distances between genesis locations. If two tornadoes occur close in space and time, they are grouped together. The procedure stops when the the space-time distance threshold exceeds 50K meter-seconds.
 ```{r}
 load("~/Desktop/Projects/EF-dist/BigDays.RData")
 st_crs(Torn.sfT)
@@ -79,6 +79,7 @@ tm_compass(position = c("left", "bottom")) +
 tm_scale_bar(position = c("left", "bottom")) +
 tm_layout(title = "April 26, 1994")
 ```
+### Figure: Map of one tornado group used in this study.
 
 Distribution of tornado groups by month.
 ```{r}
@@ -90,13 +91,13 @@ ggplot(BigDays.sfdfT, aes(x = as.factor(Month))) +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-ggplot(BigDays.sfdfT, aes(x = Month)) +
+( p0 <- ggplot(BigDays.sfdfT, aes(x = Mo)) +
   geom_bar(fill = "gray70") +
   scale_x_continuous(breaks = seq(1, 12, 1), labels = month.abb) +
   scale_y_continuous(limits = c(0, NA)) +
   coord_polar(start = 0) +
   labs(x = "Month", y = "Number of Tornado Groups\nWith At Least 10 Tornadoes") +
-  theme_minimal()
+  theme_minimal() )
 
 ggplot(BigDays.sfdfT, aes(x = nT)) +
   geom_histogram(fill = "gray70", binwidth = 5) +
@@ -104,6 +105,7 @@ ggplot(BigDays.sfdfT, aes(x = nT)) +
   ylab("Number of Groups") + xlab("Number of Tornadoes") +
   theme_minimal() 
 ```
+### Figure: Monthly distribution of big groups.
 
 We join the environmental variables at the group-level with the data at the tornado level.
 
@@ -116,7 +118,7 @@ df <- as.data.frame(BigDays.sfdfT) %>%
   left_join(as.data.frame(Torn.sfT), by = "ID")
 ```
 
-For each tornado we compute the distance to the nearest city/town. This distance serves as a proxy for the potential number of damage targets. Tornadoes occurring close to towns or cities (short distances) will, on average, have a much higher number of nearby targets.
+For each tornado we compute the distance to the nearest city/town. Distance-to-nearest city/town serves as a proxy for the potential number of damage targets. Tornadoes occurring close to towns or cities (short distances) will, on average, have a much higher number of nearby targets.
 ```{r}
 library(USAboundaries)
 
@@ -182,7 +184,7 @@ table(df2$maxEF)/dim(df2)[1]
 load("~/Desktop/Projects/EF-dist/BigDaysInLargeGroups.RData") # Note the file BigDays.sfdfT now is only days within a large group
 table(All_Tornadoes$mag)/nrow(All_Tornadoes)
 ```
-**Histogram of tornadoes by maximum EF rating. Only tornadoes occurring in large clusters are considered (see text).**
+### Figure: Histogram of tornadoes by maximum EF rating. Only tornadoes occurring in large clusters are considered (see text).
 
 As expected the histogram by EF rating on large cluster days shows that the vast majority of tornadoes are rated EF0 or EF1 with far fewer rated EF4 or EF5. But relative to all tornadoes the distribution favors higher ratings. For example, 3.5\% of big outbreak day tornadoes are rated EF3 compared with 2.3\% of all tornadoes. And .08\% of big outbreak day tornadoes are rated EF5 compared with .05\% of all tornadoes. 
 
@@ -210,7 +212,6 @@ plot.df <- data.frame(maxEF = 0:5, pr_k, cum_pr_k, cum_pr_k_all)
   theme_minimal()
 )
 ```
-**Cumulative proportion of tornadoes by maximum EF rating for all tornadoes (gray) and for tornadoes occurring in large clusters (black)**
 
 Then to re-describe the histogram as log-cumulative odds, we need a series of intercept parameters. Each intercept will be on the log-cumulative-odds scale and stand in for the cumulative probability of each rating.
 $$
@@ -239,7 +240,7 @@ plot.df$lco_all <- lco_all
   theme_minimal()
 )
 ```
-**Log-cumulative odds of a tornado by maximum EF rating for all tornadoes (gray) and for tornadoes occurring in large clusters (black)**
+### Figure: Log-cumulative odds of a tornado by maximum EF rating for all tornadoes (gray) and for tornadoes occurring in large clusters (black)**
 
 Note that the cumulative logit for the highest EF rating is infinity. This is because log(1/(1 - 1)) = $\infty$. This is always the case so we do not need a parameter for it. We get it for free from the law of total probability. So for $K$ = 6 possible maximum EF ratings we only need $K$ - 1 = 5 intercepts.
 
@@ -291,6 +292,12 @@ $$
 
 The form ensures the correct ordering of the EF ratings while allowing for changes in the likelihood of each individual value as the predictor $x_i$ changes value. As the log-cumulative odds of every EF value ($k$) below the maximum decreases, the probability mass shifts upwards toward higher EF ratings. This is analogous to what happens in quantile regression (see \cite{JaggerElsner2009}).
 
+\[
+\phi_i = \beta_{Year}Year_i + \beta_D D_i + \beta_{CAPE}CAPE_i + \beta_{HLCY}HLCY_i + \beta_{BS} BS_i + \beta_{CIN}CIN_i + \beta_M M_i + \beta_G G_i
+\]
+
+where Year_i indicates the year of tornado i and D_i indicates the distance of tornado i to the nearest town/city. CAPE_i, HLCY_i, BS_i, and CIN_i indicate the values of the corresponding environmental variables from the group assigned to tornado i. All tornadoes within the group are given the same value. Month (M_i) and group (G_i) are random offset effects so the coefficients (\beta_M and \beta_G) are vectors of length 12 and 212, respectively. 
+
 Create scaled predictor variables.
 ```{r}
 df2$Yrs <- scale(df2$Year)
@@ -303,73 +310,128 @@ df2$CINs <- scale(df2$minCIN)
 
 ### Mixed effects model
 
-Cluster number indexed from 1 to number of clusters.
+Group number indexed from 1 to number of groups.
 ```{r}
 nT <- as.vector(table(df2$ID))
 id <- rep(1:length(nT), times = nT)
 df2$id <- id
+df2$maxEF1 <- df2$maxEF + 1 # can not use 0
 ```
 
 Use the **brms** package.
 
-Start by setting the family and the model formula. Get priors. Start with some default priors (for example "normal(0,5)" for the class = "b"). Sample from the priors and check the predictive distribution of the response. Adjust the priors accordingly.
+Start by setting the family and the model formula. Get priors. 
 ```{r}
 library(brms)
-#load("fit.RData")
-df2$maxEF1 <- df2$maxEF + 1
-
 family <- brms::cumulative(threshold = "flexible")
-formula <- maxEF1 ~ Yrs + dists + CAPEs + HLCYs + BSs + CINs  + (1|mo) + (1|id)
+formula <- maxEF1 ~ 1
 
 get_prior(formula, data = df2, family = family)
 
 prior <- brm(formula = formula,
            data = df2,
            family = family,
-           prior = c(set_prior("normal(0,.5)", class = "b"),
-                    set_prior("student_t(1, 0, 10)", class = "Intercept"),
-                    set_prior("student_t(1, 0, 10)", class = "sd")),
+           prior = set_prior("student_t(7, 0, 10)", class = "Intercept"),
            sample_prior = "only",
-           control = list(max_treedepth = 15),
-           seed = 9112)
+           seed = 9121)
+prior_out <- predict(prior, probs = c(0, 1))
+head(prior_out)
 
-out <- predict(prior, probs = c(0, 1))
+fit0 <- brm(formula = formula,
+           data = df2,
+           family = family,
+           prior = set_prior("student_t(7, 0, 10)", class = "Intercept"),
+           seed = 9121)
+fixef(fit0)
+
+fit0_out <- predict(fit0, probs = c(0, 1))
+head(fit0_out)
 ```
+
+Since there are a lot of tornadoes, the posterior for each intercept is quite precisely estimated, as we can see from the small standard deviations. To get cumulative probabilities back:
+```{r}
+logistic(fixef(fit0))
+```
+
+These are the same (nearly) as the values in cum_pr_k that we computed above. But now we also have a posterior distribution around these values, and we’re ready to add predictor variables to the model.
+
+Model with predictors. Start with some default priors (for example "normal(0,5)" for the class = "b"). Sample from the priors and check the predictive distribution of the response. Adjust the priors accordingly. https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations
+```{r}
+family <- brms::cumulative(threshold = "flexible")
+formula <- maxEF1 ~ Yrs + dists + CAPEs + HLCYs + BSs + CINs  + (1|mo) + (1|id)
+
+get_prior(formula, data = df2, family = family)
+
+prior2 <- brm(formula = formula,
+           data = df2,
+           family = family,
+           prior = c(set_prior("normal(0, 1)", class = "b"),
+                     set_prior("student_t(3, 0, 10)", class = "Intercept"),
+                     set_prior("student_t(3, 0, 10)", class = "sd")),
+           sample_prior = "only",
+           seed = 9121)
+
+prior_out2 <- predict(prior2, probs = c(0, 1))
+```
+
+With normal(0, 5) the probabilities are highest for the first and sixth categories. This u-shaped distribution is diminished by using normal(0, 1). Making the standard deviation smaller introduces divergent transitions.
 
 Fit the model.
 ```{r}
-fit <- brm(formula = formula,
-           data = df2,
-           family = family,
-           prior = c(set_prior("normal(0,.5)", class = "b"),
-                    set_prior("student_t(3, 0, 10)", class = "Intercept"),
-                    set_prior("student_t(3, 0, 10)", class = "sd")),
-           control = list(max_treedepth = 15),
+fit1 <- brm(formula = formula,
+            data = df2,
+            family = family,
+            prior = c(set_prior("normal(0, 1)", class = "b"),
+                     set_prior("student_t(3, 0, 10)", class = "Intercept"),
+                     set_prior("student_t(3, 0, 10)", class = "sd")),
+#           control = list(max_treedepth = 15),
            seed = 9121)
 
+fixef(fit1)
 
+#save(fit1, file = "fit.RData")
+fit1_out <- predict(fit1, probs = c(0, 1))
+# stancode(fit1)
 
-save(fit, file = "fit.RData")
-out2 <- predict(fit, probs = c(0, 1))
-# stancode(post)
-
-fit.df <- posterior_samples(fit)
+fit1.df <- posterior_samples(fit1)
 ```
 
-Here we examine whether the effect of bulk shear is different for across different EF ratings.
+Examine potential interaction between BS and CAPE.
+```{r}
+formula2 <- maxEF1 ~ Yrs + dists + BSs * CAPEs + HLCYs + CINs  + (1|mo) + (1|id)
+
+fit2 <- brm(formula = formula2,
+            data = df2,
+            family = family,
+            prior = c(set_prior("normal(0, 1)", class = "b"),
+                     set_prior("student_t(3, 0, 10)", class = "Intercept"),
+                     set_prior("student_t(3, 0, 10)", class = "sd")),
+           seed = 9521)
+
+fixef(fit2)
+#save(fit2, file = "fit2.RData")
+
+library(bayestestR)
+equivalence_test(fit2)
+```
+There is no evidence to support an interaction between BS and CAPE.
+
+Here we examine whether the effect of bulk shear is different across different EF ratings.
 ```{r, eval=FALSE}
-formula <- maxEF1 ~ Yrs + dists + CAPEs + HLCYs + cs(BSs) + CINs  + (1|id)
+formula <- maxEF1 ~ Yrs + dists + CAPEs + HLCYs + cs(BSs) + CINs + (1|mo) + (1|id)
 family <- "sratio"
 fit3 <- brm(formula = formula,
             data = df2,
             family = family,
-            prior = c(set_prior("normal(0,.55)", class = "b"),
+            prior = c(set_prior("normal(0, 1)", class = "b"),
                     set_prior("student_t(3, 0, 10)", class = "Intercept"),
                     set_prior("student_t(3, 0, 10)", class = "sd"),
                     set_prior("normal(-1, 2)", coef = "BSs")),
              seed = 9112)
+fixef(fit3)
+#save(fit3, file = "fit3.RData")
 ```
-Apparently not. The uncertainty bounds on the estimates overlap.
+Apparently not. The uncertainty bounds on the estimates overlap across the EF ratings.
 
 Cross validation. This takes a very long time.
 ```{r, eval=FALSE}
@@ -377,22 +439,17 @@ kfold1 <- kfold(fit, folds = "stratified", group = "id")
 kfold <- kfold(fit, group = "id", chains = 1) 
 ```
 
-```{r}
-library(bayestestR)
-equivalence_test(fit)
-```
-
 ### Hypothesis test
 ```{r}
-summary(fit)
+summary(fit1)
 ```
 
 Test the hypothesis that bulk shear is more important that CAPE.
 ```{r}
-(hyp <- hypothesis(fit, "BSs > CAPEs", class = "b"))
+(hyp <- hypothesis(fit1, "BSs > CAPEs", class = "b"))
 plot(hyp)
 
-hypothesis(fit, "BSs > 0", class = "b", group = "mo", scope = "coef")
+hypothesis(fit1, "BSs > 0", class = "b", group = "mo", scope = "coef")
 ```
 
 #### Bulk shear
@@ -417,7 +474,7 @@ CINs <- 0
 
 tpk <- numeric()
 for ( s in 1:10 ) {
-    p <- fit.df[s, ]
+    p <- fit1.df[s, ]
     ak <- as.numeric(p[1:5])
     phi <- p$b_BSs * BSs
     pk <- rethinking::pordlogit( 1:5 , a = ak , phi = phi )
@@ -429,7 +486,7 @@ tpk.df$X <- rep(c(15, 45), times = 10)
 tpk.df$S <- rep(1:10, each = 2)
 names(tpk.df) <- c("EF0", "EF1", "EF2", "EF3", "EF4", "X", "S")
 
-ggplot(tpk.df, aes(x = X, y = EF0, group = S)) +
+( p3 <- ggplot(tpk.df, aes(x = X, y = EF0, group = S)) +
   geom_line(color = "#EFF3FF") +
   geom_line(aes(y = EF1), color = "#BDD7E7") +
   geom_line(aes(y = EF2), color = "#6BAED6") +
@@ -438,13 +495,14 @@ ggplot(tpk.df, aes(x = X, y = EF0, group = S)) +
   scale_y_continuous(limits = c(0, 1)) +
   scale_x_continuous() +
   xlab("Bulk Shear (m/s)") + ylab("Cumulative Proportion") +
-  theme_minimal()
+  ggtitle(label = "A") +
+  theme_minimal() )
 ```
 
 Area plots.
 ```{r}
 #p <- fit.df[1, ]
-p <- colMeans(fit.df)
+p <- colMeans(fit1.df)
 
 ak <- as.numeric(p[1:5])
 phi <- p[10] * BSs[1]
@@ -460,17 +518,23 @@ tpk.df <- data.frame(dk,
                      EF = factor(rep(c("0", "1", "2", "3", "4"), times = 2), 
                                  levels = c("4", "3", "2", "1", "0")))
 
-ggplot(tpk.df, aes(x = BS, y = dk)) + 
+( p4 <- ggplot(tpk.df, aes(x = BS, y = dk)) + 
   geom_area(aes(fill = EF), color = "white") +
   scale_fill_brewer(type = "seq", direction = -1) +
   xlab("Bulk Shear (m/s)") + ylab("Cumulative Proportion") +
   theme_minimal() +
-  ggtitle(label = "Predicted proportion of tornadoes by EF category") 
+  ggtitle(label = "B") 
+    )
+
+ggarrange(p3, p4)
 ```
+### Figure: Predicted proportion of tornadoes by EF category. A. Predictions from the first 10 posterior samples. B. Predictions based on the average over 4000 posterior samples.
+
+Another way to examine the model results is to display the marginal effects. Here we examine the marginal effect of bulk shear. We use the mean value for all the other covariates.
 
 Marginal plot. Bulk shear.
 ```{r}
-gg <- marginal_effects(fit, categorical = TRUE)
+gg <- marginal_effects(fit1, categorical = TRUE)
 ggBS <- gg[[5]]
 levels(ggBS$cats__) <- c("0", "1", "2", "3", "4", "5")
 
@@ -481,7 +545,7 @@ center <- attr(BSs, "scaled:center")
 ggBS <- ggBS %>%
   mutate(BS = BSs * scale + center)
 
-(p1 <- ggplot(ggBS, aes(x = BS, y = estimate__, col = cats__)) +
+( p5 <- ggplot(ggBS, aes(x = BS, y = estimate__, col = cats__)) +
   geom_line() +
   geom_ribbon(aes(ymin = lower__, ymax = upper__, fill = cats__), 
               alpha = .7, col = NA) +
@@ -491,8 +555,8 @@ ggBS <- ggBS %>%
   ylab("Relative Chance of a Tornado\nCausing EF-level Damage") +
   xlab("Bulk Shear (m/s)") +
     ggtitle("A") +
-  theme_minimal()
-)
+  theme_minimal() )
+
 ```
 
 Marginal plot. Distance to nearest city.
@@ -507,15 +571,17 @@ center <- attr(dists, "scaled:center")
 ggDist <- ggDist %>%
   mutate(dist = dists * scale + center)
 
-ggplot(ggDist, aes(x = dist/1000, y = estimate__, col = cats__)) +
+( p6 <- ggplot(ggDist, aes(x = dist/1000, y = estimate__, col = cats__)) +
   geom_line() +
   geom_ribbon(aes(ymin = lower__, ymax = upper__, fill = cats__), 
               alpha = .7, col = NA) +
   scale_color_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Blues") +
   scale_fill_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Blues") +
+  scale_y_continuous(limits = c(0, 1)) +
   ylab("Relative Chance of a Tornado\nCausing EF-level Damage") +
   xlab("Distance to nearest city (km)") +
-  theme_minimal()
+    ggtitle("C") +
+  theme_minimal() )
 ```
 
 Marginal plot. CAPE.
@@ -530,7 +596,7 @@ center <- attr(CAPEs, "scaled:center")
 ggCAPE <- ggCAPE %>%
   mutate(CAPE = CAPEs * scale + center)
 
-(p2 <- ggplot(ggCAPE, aes(x = CAPE, y = estimate__, col = cats__)) +
+( p7 <- ggplot(ggCAPE, aes(x = CAPE, y = estimate__, col = cats__)) +
   geom_line() +
   geom_ribbon(aes(ymin = lower__, ymax = upper__, fill = cats__), 
               alpha = .7, col = NA) +
@@ -540,13 +606,40 @@ ggCAPE <- ggCAPE %>%
   ylab("Relative Chance of a Tornado\nCausing EF-level Damage") +
   xlab("CAPE (J/kg)") +
     ggtitle("B") +
-  theme_minimal()
-)
+  theme_minimal() )
+```
+
+Marginal plot. Helicity.
+```{r}
+ggHLCY <- gg[[4]]
+levels(ggHLCY$cats__) <- c("0", "1", "2", "3", "4", "5")
+
+HLCYs <- scale(df2$maxHLCY)
+scale <- attr(HLCYs, "scaled:scale")
+center <- attr(HLCYs, "scaled:center")
+
+ggHLCY <- ggHLCY %>%
+  mutate(HLCY = HLCYs * scale + center)
+
+( p8 <- ggplot(ggHLCY, aes(x = HLCY, y = estimate__, col = cats__)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = lower__, ymax = upper__, fill = cats__), 
+              alpha = .7, col = NA) +
+  scale_color_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Blues") +
+  scale_fill_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Blues") +
+  scale_y_continuous(limits = c(0, 1)) +
+  ylab("Relative Chance of a Tornado\nCausing EF-level Damage") +
+  xlab("Storm Relative Heliciy (J/kg)") +
+    ggtitle("D") +
+  theme_minimal() )
 ```
 
 ```{r}
-ggarrange(p1, p2)
+ggarrange(p5, p7, p6, p8)
 ```
-**Marginal effect of bulk shear (A) and CAPE (B) on the distribution of tornadoes by maximum EF rating.**
+### Figure: Marginal effects of the covariates. (A) Bulk shear, CAPE (B), (C) distance to nearest town, and (D) storm relative helicity.
 
-
+Add some specific numbers. Make predictions with the predict() function specifying values.
+```{r}
+predict(fit1, newdata = data.frame(Yrs = 0, dists = 0, CAPEs = 0, HLCYs= 0, BSs = 0, CINs = 0, mo = 1:12, id = 5))
+```
