@@ -298,8 +298,10 @@ The form ensures the correct ordering of the EF ratings while allowing for chang
 
 where Year_i indicates the year of tornado i and D_i indicates the distance of tornado i to the nearest town/city. CAPE_i, HLCY_i, BS_i, and CIN_i indicate the values of the corresponding environmental variables from the group assigned to tornado i. All tornadoes within the group are given the same value. Month (M_i) and group (G_i) are random offset effects so the coefficients (\beta_M and \beta_G) are vectors of length 12 and 212, respectively. 
 
-Create scaled predictor variables.
+Create scaled predictor variables. Remove ID = 200305302651. maxHLCY is way too large.
 ```{r}
+df2 <- df2[df2$ID != 200305302651, ]
+
 df2$Yrs <- scale(df2$Year)
 df2$dists <- scale(df2$dist)
 df2$CAPEs <- scale(df2$maxCAPE)
@@ -384,7 +386,7 @@ fit1 <- brm(formula = formula,
             prior = c(set_prior("normal(0, 1)", class = "b"),
                      set_prior("student_t(3, 0, 10)", class = "Intercept"),
                      set_prior("student_t(3, 0, 10)", class = "sd")),
-#           control = list(max_treedepth = 15),
+           control = list(max_treedepth = 15),
            seed = 9121)
 
 fixef(fit1)
@@ -609,7 +611,7 @@ ggCAPE <- ggCAPE %>%
   theme_minimal() )
 ```
 
-Marginal plot. Helicity.
+Marginal plot. Helicity. Units on helicity do not appear to be correct. Should be in the range of 50-400 m^2/s^2.
 ```{r}
 ggHLCY <- gg[[4]]
 levels(ggHLCY$cats__) <- c("0", "1", "2", "3", "4", "5")
@@ -629,7 +631,7 @@ ggHLCY <- ggHLCY %>%
   scale_fill_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Blues") +
   scale_y_continuous(limits = c(0, 1)) +
   ylab("Relative Chance of a Tornado\nCausing EF-level Damage") +
-  xlab("Storm Relative Heliciy (J/kg)") +
+  xlab("Storm Relative Helicity (J/kg)") +
     ggtitle("D") +
   theme_minimal() )
 ```
@@ -639,7 +641,36 @@ ggarrange(p5, p7, p6, p8)
 ```
 ### Figure: Marginal effects of the covariates. (A) Bulk shear, CAPE (B), (C) distance to nearest town, and (D) storm relative helicity.
 
+https://aosmith.rbind.io/2019/05/13/small-multiples-plot/
+```{r}
+library(egg)
+ggarrange(p5 +
+              theme(legend.position = 'none'), 
+          p7 + 
+               theme(axis.text.y = element_blank(),
+                     axis.ticks.y = element_blank(),
+                     axis.title.y = element_blank()),
+          nrow = 1)
+
+ggarrange(p5 +
+              theme(legend.position = 'none'), 
+          p7 + 
+               theme(axis.text.y = element_blank(),
+                     axis.ticks.y = element_blank(),
+                     axis.title.y = element_blank()),
+          p6 +
+              theme(legend.position = 'none'),
+          p8 + 
+              theme(axis.text.y = element_blank(),
+                    axis.ticks.y = element_blank(),
+                    axis.title.y = element_blank(),
+                    legend.position = 'none'),
+          nrow = 2)
+```
+          
+
 Add some specific numbers. Make predictions with the predict() function specifying values.
 ```{r}
 predict(fit1, newdata = data.frame(Yrs = 0, dists = 0, CAPEs = 0, HLCYs= 0, BSs = 0, CINs = 0, mo = 1:12, id = 5))
 ```
+
