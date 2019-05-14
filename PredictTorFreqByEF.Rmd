@@ -420,9 +420,9 @@ There is no evidence to support an interaction between BS and CAPE.
 
 Here we examine whether the effect of bulk shear is different across different EF ratings.
 ```{r, eval=FALSE}
-formula <- maxEF1 ~ Yrs + dists + CAPEs + HLCYs + cs(BSs) + CINs + (1|mo) + (1|id)
+formula3 <- maxEF1 ~ cs(Yrs) + dists + CAPEs + HLCYs + BSs + CINs + (1|mo) + (1|id)
 family <- "sratio"
-fit3 <- brm(formula = formula,
+fit3 <- brm(formula = formula3,
             data = df2,
             family = family,
             prior = c(set_prior("normal(0, 1)", class = "b"),
@@ -433,7 +433,7 @@ fit3 <- brm(formula = formula,
 fixef(fit3)
 #save(fit3, file = "fit3.RData")
 ```
-Apparently not. The uncertainty bounds on the estimates overlap across the EF ratings.
+Apparently not. The uncertainty bounds on the estimates overlap across the EF ratings. Repeat for Year!
 
 Cross validation. This takes a very long time.
 ```{r, eval=FALSE}
@@ -528,7 +528,7 @@ tpk.df <- data.frame(dk,
   ggtitle(label = "B") 
     )
 
-ggarrange(p3, p4)
+ggarrange(p3, p4, nrow = 1)
 ```
 ### Figure: Predicted proportion of tornadoes by EF category. A. Predictions from the first 10 posterior samples. B. Predictions based on the average over 4000 posterior samples.
 
@@ -558,7 +558,6 @@ ggBS <- ggBS %>%
   xlab("Bulk Shear (m/s)") +
     ggtitle("A") +
   theme_minimal() )
-
 ```
 
 Marginal plot. Distance to nearest city.
