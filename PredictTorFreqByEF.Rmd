@@ -420,11 +420,11 @@ There is no evidence to support an interaction between BS and CAPE.
 
 Here we examine whether the effect of bulk shear is different across different EF ratings.
 ```{r, eval=FALSE}
-formula3 <- maxEF1 ~ cs(Yrs) + dists + CAPEs + HLCYs + BSs + CINs + (1|mo) + (1|id)
-family <- "sratio"
+formula3 <- maxEF1 ~ Yrs + dists + CAPEs + HLCYs + cs(BSs) + CINs + (1|mo) + (1|id)
+family3 <- "sratio"
 fit3 <- brm(formula = formula3,
             data = df2,
-            family = family,
+            family = family3,
             prior = c(set_prior("normal(0, 1)", class = "b"),
                     set_prior("student_t(3, 0, 10)", class = "Intercept"),
                     set_prior("student_t(3, 0, 10)", class = "sd"),
@@ -433,7 +433,43 @@ fit3 <- brm(formula = formula3,
 fixef(fit3)
 #save(fit3, file = "fit3.RData")
 ```
-Apparently not. The uncertainty bounds on the estimates overlap across the EF ratings. Repeat for Year!
+Apparently not. The uncertainty bounds on the estimates overlap across the EF ratings. 
+
+Here we examine whether the trend is different across different EF ratings.
+```{r, eval=FALSE}
+formula4 <- maxEF1 ~ cs(Yrs) + dists + CAPEs + HLCYs + BSs + CINs + (1|mo) + (1|id)
+family4 <- "sratio"
+fit4 <- brm(formula = formula4,
+            data = df2,
+            family = family4,
+            prior = c(set_prior("normal(0, 1)", class = "b"),
+                    set_prior("student_t(3, 0, 10)", class = "Intercept"),
+                    set_prior("student_t(3, 0, 10)", class = "sd"),
+                    set_prior("normal(-1, 2)", coef = "BSs")),
+             seed = 9112)
+fixef(fit4)
+#save(fit4, file = "fit4.RData")
+```
+Here we see an increase in EF0 relative to EF1s and EF2s.
+
+Here we examine whether the effect of distance to city is different across different EF ratings.
+```{r, eval=FALSE}
+formula5 <- maxEF1 ~ dists + cs(CAPEs) + HLCYs + BSs + (1|mo) + (1|id)
+family5 <- "sratio"
+fit5 <- brm(formula = formula5,
+            data = df2,
+            family = family5,
+            prior = c(set_prior("normal(0, 1)", class = "b"),
+                    set_prior("student_t(3, 0, 10)", class = "Intercept"),
+                    set_prior("student_t(3, 0, 10)", class = "sd"),
+                    set_prior("normal(-1, 2)", coef = "BSs")),
+                    control = list(max_treedepth = 15, adapt_delta = .9),
+             seed = 9112)
+fixef(fit5)
+save(fit5, file = "fit5.RData")
+fit5.df <- posterior_samples(fit5)
+```
+
 
 Cross validation. This takes a very long time.
 ```{r, eval=FALSE}
@@ -468,17 +504,15 @@ center <- attr(BSs, "scaled:center")
 Line plots.
 ```{r}
 dists <- -1.3
-Yrs <- 0
 CAPEs <- 0
 HLCYs <- 0
 BSs <- c(BSlo, BShi)
-CINs <- 0
 
 tpk <- numeric()
 for ( s in 1:10 ) {
-    p <- fit1.df[s, ]
+    p <- fit5.df[s, ]
     ak <- as.numeric(p[1:5])
-    phi <- p$b_BSs * BSs
+    phi <- p$b_dists * dists + p$b_BSs * BSs
     pk <- rethinking::pordlogit( 1:5 , a = ak , phi = phi )
     tpk <- rbind(tpk, pk)
 }
@@ -504,13 +538,13 @@ names(tpk.df) <- c("EF0", "EF1", "EF2", "EF3", "EF4", "X", "S")
 Area plots.
 ```{r}
 #p <- fit.df[1, ]
-p <- colMeans(fit1.df)
+p <- colMeans(fit5.df)
 
 ak <- as.numeric(p[1:5])
-phi <- p[10] * BSs[1]
+phi <- p[6] * dists + p[8] * BSs[1]
 dk1 <- rethinking::dordlogit( 1:5 , a = ak , phi = phi )
 
-phi <- p[10] * BSs[2]
+phi <- p[6] * dists + p[8] * BSs[2]
 dk2 <- rethinking::dordlogit( 1:5 , a = ak , phi = phi )
 
 dk <- c(dk1, dk2)
@@ -536,8 +570,8 @@ Another way to examine the model results is to display the marginal effects. Her
 
 Marginal plot. Bulk shear.
 ```{r}
-gg <- marginal_effects(fit1, categorical = TRUE)
-ggBS <- gg[[5]]
+gg <- marginal_effects(fit5, categorical = TRUE)
+ggBS <- gg[[3]]
 levels(ggBS$cats__) <- c("0", "1", "2", "3", "4", "5")
 
 BSs <- scale(df2$maxBS)
@@ -562,7 +596,7 @@ ggBS <- ggBS %>%
 
 Marginal plot. Distance to nearest city.
 ```{r}
-ggDist <- gg[[2]]
+ggDist <- gg[[1]]
 levels(ggDist$cats__) <- c("0", "1", "2", "3", "4", "5")
 
 dists <- scale(df2$dist)
@@ -587,7 +621,7 @@ ggDist <- ggDist %>%
 
 Marginal plot. CAPE.
 ```{r}
-ggCAPE <- gg[[3]]
+ggCAPE <- gg[[4]]
 levels(ggCAPE$cats__) <- c("0", "1", "2", "3", "4", "5")
 
 CAPEs <- scale(df2$maxCAPE)
@@ -612,7 +646,7 @@ ggCAPE <- ggCAPE %>%
 
 Marginal plot. Helicity. Units on helicity do not appear to be correct. Should be in the range of 50-400 m^2/s^2.
 ```{r}
-ggHLCY <- gg[[4]]
+ggHLCY <- gg[[2]]
 levels(ggHLCY$cats__) <- c("0", "1", "2", "3", "4", "5")
 
 HLCYs <- scale(df2$maxHLCY)
