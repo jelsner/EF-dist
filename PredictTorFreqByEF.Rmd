@@ -17,18 +17,6 @@ Elsner/Schroder
 
 _Journal of Applied Meteorology and Climatology_
 
-The science of forecasting where an outbreak of severe convective weather might occur is well developed. For example, considerable skill exists in outlining what regions of the United States have the highest risk of severe weather on any given day. But more work is needed to forecast specific characteristics of the outbreaks. Here we develop a statistical model that can be used to predict the probability distribution of tornado counts by EF rating on days expected to produce an outbreak. The model is fit using population centers to condition on the fact that damage ratings are related to the number (and type) of potential targets. The model quantifies the importance of this demographic information relative to information from environmental factors known to influence tornado occurrence, including CAPE and bulk shear. The model controls for distance to nearest city to quantify the percent increase in the chance of at least one tornado rated EF3 or higher for a unit increase in CAPE and bulk shear. The model is an ordered logistic regression and the model parameters are determined using the method of Hamiltonian Monte Carlo with the Stan language. Stan code is generated from R through the 'brms' package. The flexibility of this approach makes it easy to adjust the model to forecast other outbreak characteristics and to include domain-specific knowledge.
-
-Motivation: Current lack of statistical guidance for forecasting outbreak characteristics. Perhaps such tools can be used to better describe the threat and thus hopefully save lives.
-
-Significant advances have been made in identifying environments supportive of individual supercell tornadoes (Rasmussen and Blanchard 1988, Hart and Korotky 1991, Davies 1993). More recently a logistic regression model was developed to predict the probability of at least one significant (EF2+) supercell tornado on days with at least one tornado-warned supercell using a similar set of environmental background variables (\cite{TogstadEtAl2011}).
-
-Ordered logistic regression to predict the probability distributions of tornado counts by EF rating. With distance to nearest city as a predictor variable we will be able to quantify how the potential number of damage targets shifts the distributions for example from EF0 to EF1 from EF1 to EF2. We know that the chance of getting an EF4+ tornado in the data set increases with the number of targets. What we don't know is by how much relative to an EF3.
-
-The study aims to (1) show the feasibility of forecasting a particular outbreak characteristic, (2) quantify the relationship between environmental factors and the probability of particular EF-level damage, and (3) demonstrate the flexibility of a modeling framework that can be applied in forecasting other characteristics.
-
-It should be noted that because the statistical model is fit to data exclusively from large groups of tornadoes, predicted probabilities are strictly valid only when an outbreak occurs.
-
 Load packages.
 ```{r}
 library(sf)
@@ -470,6 +458,22 @@ save(fit5, file = "fit5.RData")
 fit5.df <- posterior_samples(fit5)
 ```
 
+```{r, eval=FALSE}
+formula6 <- maxEF1 ~ dists + CAPEs + HLCYs + BSs + (1|mo) + (1|id)
+family6 <- brms::cumulative(threshold = "flexible")
+fit6 <- brm(formula = formula6,
+            data = df2,
+            family = family6,
+            prior = c(set_prior("normal(0, 1)", class = "b"),
+                    set_prior("student_t(3, 0, 10)", class = "Intercept"),
+                    set_prior("student_t(3, 0, 10)", class = "sd"),
+                    set_prior("normal(-1, 2)", coef = "BSs")),
+             seed = 9112)
+fixef(fit6)
+save(fit6, file = "fit5.RData")
+fit6.df <- posterior_samples(fit6)
+```
+
 
 Cross validation. This takes a very long time.
 ```{r, eval=FALSE}
@@ -482,12 +486,12 @@ kfold <- kfold(fit, group = "id", chains = 1)
 summary(fit1)
 ```
 
-Test the hypothesis that bulk shear is more important that CAPE.
+Test the hypothesis that HLCYs is more important that CAPE.
 ```{r}
-(hyp <- hypothesis(fit1, "BSs > CAPEs", class = "b"))
+(hyp <- hypothesis(fit6, "HLCYs > CAPEs", class = "b"))
 plot(hyp)
 
-hypothesis(fit1, "BSs > 0", class = "b", group = "mo", scope = "coef")
+hypothesis(fit6, "dists < 0", class = "b")
 ```
 
 #### Bulk shear
@@ -510,7 +514,7 @@ BSs <- c(BSlo, BShi)
 
 tpk <- numeric()
 for ( s in 1:10 ) {
-    p <- fit5.df[s, ]
+    p <- fit6.df[s, ]
     ak <- as.numeric(p[1:5])
     phi <- p$b_dists * dists + p$b_BSs * BSs
     pk <- rethinking::pordlogit( 1:5 , a = ak , phi = phi )
@@ -538,13 +542,13 @@ names(tpk.df) <- c("EF0", "EF1", "EF2", "EF3", "EF4", "X", "S")
 Area plots.
 ```{r}
 #p <- fit.df[1, ]
-p <- colMeans(fit5.df)
+p <- colMeans(fit6.df)
 
 ak <- as.numeric(p[1:5])
-phi <- p[6] * dists + p[8] * BSs[1]
+phi <- p[6] * dists + p[9] * BSs[1]
 dk1 <- rethinking::dordlogit( 1:5 , a = ak , phi = phi )
 
-phi <- p[6] * dists + p[8] * BSs[2]
+phi <- p[6] * dists + p[9] * BSs[2]
 dk2 <- rethinking::dordlogit( 1:5 , a = ak , phi = phi )
 
 dk <- c(dk1, dk2)
@@ -570,8 +574,8 @@ Another way to examine the model results is to display the marginal effects. Her
 
 Marginal plot. Bulk shear.
 ```{r}
-gg <- marginal_effects(fit5, categorical = TRUE)
-ggBS <- gg[[3]]
+gg <- marginal_effects(fit6, categorical = TRUE)
+ggBS <- gg[[4]]
 levels(ggBS$cats__) <- c("0", "1", "2", "3", "4", "5")
 
 BSs <- scale(df2$maxBS)
@@ -621,7 +625,7 @@ ggDist <- ggDist %>%
 
 Marginal plot. CAPE.
 ```{r}
-ggCAPE <- gg[[4]]
+ggCAPE <- gg[[2]]
 levels(ggCAPE$cats__) <- c("0", "1", "2", "3", "4", "5")
 
 CAPEs <- scale(df2$maxCAPE)
@@ -644,9 +648,9 @@ ggCAPE <- ggCAPE %>%
   theme_minimal() )
 ```
 
-Marginal plot. Helicity. Units on helicity do not appear to be correct. Should be in the range of 50-400 m^2/s^2.
+Marginal plot. Helicity. Units on helicity do not appear to be correct. Should be in the range of 50-400 m^2/s^2. Removed one group to fix this.
 ```{r}
-ggHLCY <- gg[[2]]
+ggHLCY <- gg[[3]]
 levels(ggHLCY$cats__) <- c("0", "1", "2", "3", "4", "5")
 
 HLCYs <- scale(df2$maxHLCY)
@@ -685,7 +689,7 @@ ggarrange(p5 +
                      axis.title.y = element_blank()),
           nrow = 1)
 
-ggarrange(p5 +
+M6 <- ggarrange(p5 +
               theme(legend.position = 'none'), 
           p7 + 
                theme(axis.text.y = element_blank(),
