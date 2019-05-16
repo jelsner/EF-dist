@@ -470,7 +470,7 @@ fit6 <- brm(formula = formula6,
                     set_prior("normal(-1, 2)", coef = "BSs")),
              seed = 9112)
 fixef(fit6)
-save(fit6, file = "fit5.RData")
+save(fit6, file = "fit6.RData")
 fit6.df <- posterior_samples(fit6)
 ```
 
