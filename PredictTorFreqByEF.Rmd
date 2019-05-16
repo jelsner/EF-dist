@@ -441,9 +441,10 @@ fit4 <- brm(formula = formula4,
                     set_prior("student_t(3, 0, 10)", class = "Intercept"),
                     set_prior("student_t(3, 0, 10)", class = "sd"),
                     set_prior("normal(-1, 2)", coef = "BSs")),
-             seed = 9112)
+             seed = 9198912)
 fixef(fit4)
 #save(fit4, file = "fit4.RData")
+fit4.df <- posterior_samples(fit4)
 ```
 Here we see an increase in EF0 relative to EF1s and EF2s.
 
