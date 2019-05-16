@@ -39,6 +39,9 @@ The simple feature `BigDays.sfdfT` contains group-level data including environme
 A map of one tornado group used in this study.
 ```{r}
 library(USAboundaries)
+```
+
+```{r}
 ctys <- us_counties()
 sts1 <- us_states(states = c("IL", "IN", "KY", "MO", "KS",
                             "OK", "AR", "TN", "MS", "TX"))
@@ -51,8 +54,6 @@ BD <- BigDays.sfdfT %>%
 BDt <- Torn.sfT %>%
   filter(groupNumber == groupNo) %>%
   mutate(magF = factor(mag, levels = 0:4))
-
-library(tmap)
 
 tm_shape(BD) +
   tm_polygons() +
@@ -79,7 +80,7 @@ ggplot(BigDays.sfdfT, aes(x = as.factor(Month))) +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-( p0 <- ggplot(BigDays.sfdfT, aes(x = Mo)) +
+( p0 <- ggplot(BigDays.sfdfT, aes(x = Month)) +
   geom_bar(fill = "gray70") +
   scale_x_continuous(breaks = seq(1, 12, 1), labels = month.abb) +
   scale_y_continuous(limits = c(0, NA)) +
@@ -108,8 +109,6 @@ df <- as.data.frame(BigDays.sfdfT) %>%
 
 For each tornado we compute the distance to the nearest city/town. Distance-to-nearest city/town serves as a proxy for the potential number of damage targets. Tornadoes occurring close to towns or cities (short distances) will, on average, have a much higher number of nearby targets.
 ```{r}
-library(USAboundaries)
-
 C.sf <- us_cities() %>%
   st_transform(crs = 102004)
 
@@ -286,7 +285,7 @@ The form ensures the correct ordering of the EF ratings while allowing for chang
 
 where Year_i indicates the year of tornado i and D_i indicates the distance of tornado i to the nearest town/city. CAPE_i, HLCY_i, BS_i, and CIN_i indicate the values of the corresponding environmental variables from the group assigned to tornado i. All tornadoes within the group are given the same value. Month (M_i) and group (G_i) are random offset effects so the coefficients (\beta_M and \beta_G) are vectors of length 12 and 212, respectively. 
 
-Create scaled predictor variables. Remove ID = 200305302651. maxHLCY is way too large.
+Create scaled predictor variables. Remove ID = 200305302651. maxHLCY is unrealistically large.
 ```{r}
 df2 <- df2[df2$ID != 200305302651, ]
 
@@ -348,7 +347,7 @@ These are the same (nearly) as the values in cum_pr_k that we computed above. Bu
 Model with predictors. Start with some default priors (for example "normal(0,5)" for the class = "b"). Sample from the priors and check the predictive distribution of the response. Adjust the priors accordingly. https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations
 ```{r}
 family <- brms::cumulative(threshold = "flexible")
-formula <- maxEF1 ~ Yrs + dists + CAPEs + HLCYs + BSs + CINs  + (1|mo) + (1|id)
+formula <- maxEF1 ~ Yrs + dists + CAPEs + HLCYs + BSs + (1|mo) + (1|id)
 
 get_prior(formula, data = df2, family = family)
 
@@ -359,12 +358,13 @@ prior2 <- brm(formula = formula,
                      set_prior("student_t(3, 0, 10)", class = "Intercept"),
                      set_prior("student_t(3, 0, 10)", class = "sd")),
            sample_prior = "only",
+           control = list(max_treedepth = 15),
            seed = 9121)
 
 prior_out2 <- predict(prior2, probs = c(0, 1))
 ```
 
-With normal(0, 5) the probabilities are highest for the first and sixth categories. This u-shaped distribution is diminished by using normal(0, 1). Making the standard deviation smaller introduces divergent transitions.
+With normal(0, 5) the probabilities are highest for the first and sixth categories. This u-shaped distribution is diminished by using normal(0, 1). Making the standard deviation even smaller introduces divergent transitions.
 
 Fit the model.
 ```{r}
@@ -375,20 +375,26 @@ fit1 <- brm(formula = formula,
                      set_prior("student_t(3, 0, 10)", class = "Intercept"),
                      set_prior("student_t(3, 0, 10)", class = "sd")),
            control = list(max_treedepth = 15),
-           seed = 9121)
+           seed = 78121)
 
 fixef(fit1)
 
-#save(fit1, file = "fit.RData")
+#save(fit1, file = "fit1.RData")
 fit1_out <- predict(fit1, probs = c(0, 1))
 # stancode(fit1)
 
 fit1.df <- posterior_samples(fit1)
 ```
 
-Examine potential interaction between BS and CAPE.
 ```{r}
-formula2 <- maxEF1 ~ Yrs + dists + BSs * CAPEs + HLCYs + CINs  + (1|mo) + (1|id)
+library(lme4)
+library(bayestestR)
+equivalence_test(fit1)
+```
+
+Examine potential interaction between HLCY and CAPE.
+```{r}
+formula2 <- maxEF1 ~ Yrs * dists + CAPEs + HLCYs + BSs  + (1|mo) + (1|id)
 
 fit2 <- brm(formula = formula2,
             data = df2,
@@ -396,19 +402,20 @@ fit2 <- brm(formula = formula2,
             prior = c(set_prior("normal(0, 1)", class = "b"),
                      set_prior("student_t(3, 0, 10)", class = "Intercept"),
                      set_prior("student_t(3, 0, 10)", class = "sd")),
+           control = list(max_treedepth = 15),
            seed = 9521)
 
 fixef(fit2)
 #save(fit2, file = "fit2.RData")
-
-library(bayestestR)
 equivalence_test(fit2)
+
+fit2.df <- posterior_samples(fit2)
 ```
-There is no evidence to support an interaction between BS and CAPE.
+There is no evidence to support an interaction between BS and CAPE or HLCY and CAPE or Yr and dist.
 
 Here we examine whether the effect of bulk shear is different across different EF ratings.
 ```{r, eval=FALSE}
-formula3 <- maxEF1 ~ Yrs + dists + CAPEs + HLCYs + cs(BSs) + CINs + (1|mo) + (1|id)
+formula3 <- maxEF1 ~ Yrs + dists + CAPEs + HLCYs + cs(BSs) + (1|mo) + (1|id)
 family3 <- "sratio"
 fit3 <- brm(formula = formula3,
             data = df2,
@@ -425,7 +432,7 @@ Apparently not. The uncertainty bounds on the estimates overlap across the EF ra
 
 Here we examine whether the trend is different across different EF ratings.
 ```{r, eval=FALSE}
-formula4 <- maxEF1 ~ cs(Yrs) + dists + CAPEs + HLCYs + BSs + CINs + (1|mo) + (1|id)
+formula4 <- maxEF1 ~ cs(Yrs) + dists + CAPEs + HLCYs + BSs + (1|mo) + (1|id)
 family4 <- "sratio"
 fit4 <- brm(formula = formula4,
             data = df2,
@@ -503,26 +510,33 @@ scale <- attr(BSs, "scaled:scale")
 center <- attr(BSs, "scaled:center")
 ( BSlo <- (15 - center) / scale )
 ( BShi <- (45 - center) / scale )
+
+Yrs <- scale(df2$Year)
+scale <- attr(Yrs, "scaled:scale")
+center <- attr(Yrs, "scaled:center")
+( Yrlo <- (1994 - center) / scale )
+( Yrhi <- (2017 - center) / scale )
 ```
 
 Line plots.
 ```{r}
-dists <- -1.3
+dists <- 0
 CAPEs <- 0
 HLCYs <- 0
-BSs <- c(BSlo, BShi)
+BSs <- 0
+Yrs <- c(Yrlo, Yrhi)
 
 tpk <- numeric()
 for ( s in 1:10 ) {
-    p <- fit6.df[s, ]
+    p <- fit2.df[s, ]
     ak <- as.numeric(p[1:5])
-    phi <- p$b_dists * dists + p$b_BSs * BSs
+    phi <- p$b_Yrs * Yrs
     pk <- rethinking::pordlogit( 1:5 , a = ak , phi = phi )
     tpk <- rbind(tpk, pk)
 }
 
 tpk.df <- as.data.frame(tpk)
-tpk.df$X <- rep(c(15, 45), times = 10)
+tpk.df$X <- rep(c(1994, 2017), times = 10)
 tpk.df$S <- rep(1:10, each = 2)
 names(tpk.df) <- c("EF0", "EF1", "EF2", "EF3", "EF4", "X", "S")
 
@@ -533,8 +547,8 @@ names(tpk.df) <- c("EF0", "EF1", "EF2", "EF3", "EF4", "X", "S")
   geom_line(aes(y = EF3), color = "#3182BD") +
   geom_line(aes(y = EF4), color = "#08519C") +
   scale_y_continuous(limits = c(0, 1)) +
-  scale_x_continuous() +
-  xlab("Bulk Shear (m/s)") + ylab("Cumulative Proportion") +
+  scale_x_continuous(breaks = c(1995, 2000, 2005, 2010, 2015)) +
+  xlab("Year") + ylab("Cumulative Proportion") +
   ggtitle(label = "A") +
   theme_minimal() )
 ```
