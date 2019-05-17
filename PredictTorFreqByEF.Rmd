@@ -450,7 +450,7 @@ Here we see an increase in EF0 relative to EF1s and EF2s.
 
 Here we examine whether the effect of distance to city is different across different EF ratings.
 ```{r, eval=FALSE}
-formula5 <- maxEF1 ~ dists + cs(CAPEs) + HLCYs + BSs + (1|mo) + (1|id)
+formula5 <- maxEF1 ~ Yrs + cs(dists) + CAPEs + HLCYs + BSs + (1|mo) + (1|id)
 family5 <- "sratio"
 fit5 <- brm(formula = formula5,
             data = df2,
@@ -465,10 +465,12 @@ fixef(fit5)
 save(fit5, file = "fit5.RData")
 fit5.df <- posterior_samples(fit5)
 ```
+A negative coefficient indicates that as distance increases the proportion of storms rated EF0 decreases.
 
+Here we examine whether the effect of distance to city is different across different EF ratings.
 ```{r, eval=FALSE}
-formula6 <- maxEF1 ~ dists + CAPEs + HLCYs + BSs + (1|mo) + (1|id)
-family6 <- brms::cumulative(threshold = "flexible")
+formula6 <- maxEF1 ~ Yrs + dists + cs(CAPEs) + HLCYs + BSs + (1|mo) + (1|id)
+family6 <- "sratio"
 fit6 <- brm(formula = formula6,
             data = df2,
             family = family6,
