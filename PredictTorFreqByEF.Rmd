@@ -467,7 +467,7 @@ fit5.df <- posterior_samples(fit5)
 ```
 A negative coefficient indicates that as distance increases the proportion of storms rated EF0 decreases.
 
-Here we examine whether the effect of distance to city is different across different EF ratings.
+Here we examine whether the effect of CAPE different across different EF ratings.
 ```{r, eval=FALSE}
 formula6 <- maxEF1 ~ Yrs + dists + cs(CAPEs) + HLCYs + BSs + (1|mo) + (1|id)
 family6 <- "sratio"
@@ -478,12 +478,12 @@ fit6 <- brm(formula = formula6,
                     set_prior("student_t(3, 0, 10)", class = "Intercept"),
                     set_prior("student_t(3, 0, 10)", class = "sd"),
                     set_prior("normal(-1, 2)", coef = "BSs")),
-             seed = 9112)
+                    control = list(max_treedepth = 15, adapt_delta = .9),
+             seed = 91712)
 fixef(fit6)
 save(fit6, file = "fit6.RData")
 fit6.df <- posterior_samples(fit6)
 ```
-
 
 Cross validation. This takes a very long time.
 ```{r, eval=FALSE}
