@@ -36,7 +36,15 @@ st_crs(BigDays.sfdfT)
 
 The simple feature `BigDays.sfdfT` contains group-level data including environmental variables. The simple feature `Torn.sfT` contains tornado-level data for all tornadoes on the big days. Note: they have different CRSs.
 
-A map of one tornado group used in this study.
+A single group can be across more than one convective day. And there can be more than one group on a convective day. ID provides a unique label for the date and group number.
+```{r}
+dim(BigDays.sfdfT)
+length(unique(BigDays.sfdfT$ID))
+length(unique(BigDays.sfdfT$groupNumber))
+length(unique(BigDays.sfdfT$cDate))
+```
+
+A map of one convective-day group used in this study.
 ```{r}
 library(USAboundaries)
 ```
@@ -44,15 +52,15 @@ library(USAboundaries)
 ```{r}
 ctys <- us_counties()
 sts1 <- us_states(states = c("IL", "IN", "KY", "MO", "KS",
-                            "OK", "AR", "TN", "MS", "TX"))
+                             "OK", "AR", "TN", "MS", "TX"))
 sts <- us_states()
 
-groupNo <- 53
+IDno <- 1994042653
 
 BD <- BigDays.sfdfT %>%
-  filter(groupNumber == groupNo)
+  filter(ID == IDno)
 BDt <- Torn.sfT %>%
-  filter(groupNumber == groupNo) %>%
+  filter(ID == IDno) %>%
   mutate(magF = factor(mag, levels = 0:4))
 
 tm_shape(BD) +
@@ -61,14 +69,14 @@ tm_shape(sts1, is.master = TRUE) +
   tm_borders() +
 tm_shape(sts) +
   tm_borders(col = "gray70") +
-  tm_text("name", size = .6) +
+  tm_text("name", size = .6, remove.overlap = TRUE) +
 tm_shape(BDt) +
   tm_dots(size = .5) +
 tm_compass(position = c("left", "bottom")) +
 tm_scale_bar(position = c("left", "bottom")) +
 tm_layout(title = "April 26, 1994")
 ```
-### Figure: Map of one tornado group used in this study.
+### Figure: Locations of tornadoes (origin) during one convective-day group used in this study.
 
 Distribution of tornado groups by month.
 ```{r}
@@ -85,7 +93,9 @@ ggplot(BigDays.sfdfT, aes(x = as.factor(Month))) +
   scale_x_continuous(breaks = seq(1, 12, 1), labels = month.abb) +
   scale_y_continuous(limits = c(0, NA)) +
   coord_polar(start = 0) +
-  labs(x = "Month", y = "Number of Tornado Groups\nWith At Least 10 Tornadoes") +
+  labs(x = "Month", y = "Number") +
+#    ggtitle(label = "Monthly Frequency of Convective-Day Groups",
+#            subtitle = "For Groups With At Least Ten Tornadoes (1994-2017)") +
   theme_minimal() )
 
 ggplot(BigDays.sfdfT, aes(x = nT)) +
@@ -94,13 +104,13 @@ ggplot(BigDays.sfdfT, aes(x = nT)) +
   ylab("Number of Groups") + xlab("Number of Tornadoes") +
   theme_minimal() 
 ```
-### Figure: Monthly distribution of big groups.
+### Figure: Monthly frequency of convective-day groups for groups with at least ten tornadoes (1994--2017).
 
 We join the environmental variables at the group-level with the data at the tornado level.
 
 Given a group of at least ten tornadoes within a single convective 24-hour period, we extract environmental variables from the North American Regional Reanalysis (NARR) obtained from the the National Center for Atmospheric Research (NCAR). Variables are available on a 32.4 km grid and represent of a blend of model and observational sounding data.
 
-We use the 3-hourly files that contain environmental data for each day ranging from 0Z to 21Z in 3-hour increments. For each tornado group, we calculate the closest 3-hour time before the occurrence of the first tornado. We pick a time before the event starts because we want to sample the pre-storm environment. We use tornado groups occurring between January 1994 and December 2017 resulting in a total of 16,504 tornadoe in 212 groups.
+We use the 3-hourly files that contain environmental data for each day ranging from 0Z to 21Z in 3-hour increments. For each tornado group, we calculate the closest 3-hour time before the occurrence of the first tornado. We pick a time before the event starts because we want to sample the pre-storm environment. We use tornado groups occurring between January 1994 and December 2017 resulting in a total of 16,504 tornadoes in 742 groups.
 ```{r}
 df <- as.data.frame(BigDays.sfdfT) %>%
   select(ID, maxCAPE, maxHLCY, minCIN, maxBS, maxSM) %>%
@@ -152,7 +162,7 @@ library(rethinking)
 
 ### Describing the ordered distribution of maximum EF ratings with intercepts
 
-We begin with a histogram of maximum EF rating per tornado.
+We begin with a histogram of maximum EF rating per tornado. We need the `BigDaysInLargeGroups.RData` file to get all tornadoes. When we load this the file `BigDays.sfdfT` is now only days within a large group.
 ```{r}
 df2 <- df %>%
   mutate(maxEF = as.integer(mag)) %>%
@@ -171,7 +181,7 @@ table(df2$maxEF)/dim(df2)[1]
 load("~/Desktop/Projects/EF-dist/BigDaysInLargeGroups.RData") # Note the file BigDays.sfdfT now is only days within a large group
 table(All_Tornadoes$mag)/nrow(All_Tornadoes)
 ```
-### Figure: Histogram of tornadoes by maximum EF rating. Only tornadoes occurring in large clusters are considered (see text).
+### Figure: Histogram of tornadoes by maximum EF rating. Only tornadoes occurring in big convective-day groups are considered (see text).
 
 As expected the histogram by EF rating on large cluster days shows that the vast majority of tornadoes are rated EF0 or EF1 with far fewer rated EF4 or EF5. But relative to all tornadoes the distribution favors higher ratings. For example, 3.5\% of big outbreak day tornadoes are rated EF3 compared with 2.3\% of all tornadoes. And .08\% of big outbreak day tornadoes are rated EF5 compared with .05\% of all tornadoes. 
 
@@ -227,7 +237,7 @@ plot.df$lco_all <- lco_all
   theme_minimal()
 )
 ```
-### Figure: Log-cumulative odds of a tornado by maximum EF rating for all tornadoes (gray) and for tornadoes occurring in large clusters (black)**
+### Figure: Cumulative proportion (A) and log-cumulative odds (B) of a tornado by maximum EF rating for all tornadoes (gray) and for tornadoes occurring in large convective-day groups (black)**
 
 Note that the cumulative logit for the highest EF rating is infinity. This is because log(1/(1 - 1)) = $\infty$. This is always the case so we do not need a parameter for it. We get it for free from the law of total probability. So for $K$ = 6 possible maximum EF ratings we only need $K$ - 1 = 5 intercepts.
 
