@@ -237,7 +237,7 @@ plot.df$lco_all <- lco_all
   theme_minimal()
 )
 ```
-### Figure: Cumulative proportion (A) and log-cumulative odds (B) of a tornado by maximum EF rating for all tornadoes (gray) and for tornadoes occurring in large convective-day groups (black)**
+### Figure: Cumulative proportion (A) and log-cumulative odds (B) of a tornado by maximum EF rating for all tornadoes (gray) and for tornadoes occurring in large convective-day groups (black)
 
 Note that the cumulative logit for the highest EF rating is infinity. This is because log(1/(1 - 1)) = $\infty$. This is always the case so we do not need a parameter for it. We get it for free from the law of total probability. So for $K$ = 6 possible maximum EF ratings we only need $K$ - 1 = 5 intercepts.
 
@@ -305,7 +305,12 @@ df2$CAPEs <- scale(df2$maxCAPE)
 df2$HLCYs <- scale(df2$maxHLCY)
 df2$BSs <- scale(df2$maxBS)
 df2$CINs <- scale(df2$minCIN)
+
+dim(df2)
+length(unique(df2$ID))
 ```
+
+The final number of tornadoes modeled is 16483 across 741 groups.
 
 ### Mixed effects model
 
@@ -352,9 +357,9 @@ Since there are a lot of tornadoes, the posterior for each intercept is quite pr
 logistic(fixef(fit0))
 ```
 
-These are the same (nearly) as the values in cum_pr_k that we computed above. But now we also have a posterior distribution around these values, and we’re ready to add predictor variables to the model.
+These are the same (nearly) as the values in `cum_pr_k` that we computed above. But now we also have a posterior distribution around these values, and we’re ready to add predictor variables to the model.
 
-Model with predictors. Start with some default priors (for example "normal(0,5)" for the class = "b"). Sample from the priors and check the predictive distribution of the response. Adjust the priors accordingly. https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations
+Model with predictors. Start with some default priors (for example `"normal(0,5)"` for the `class = "b"`). Sample from the priors and check the predictive distribution of the response. Adjust the priors accordingly. https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations
 ```{r}
 family <- brms::cumulative(threshold = "flexible")
 formula <- maxEF1 ~ Yrs + dists + CAPEs + HLCYs + BSs + (1|mo) + (1|id)
@@ -374,7 +379,7 @@ prior2 <- brm(formula = formula,
 prior_out2 <- predict(prior2, probs = c(0, 1))
 ```
 
-With normal(0, 5) the probabilities are highest for the first and sixth categories. This u-shaped distribution is diminished by using normal(0, 1). Making the standard deviation even smaller introduces divergent transitions.
+With `normal(0, 5)` the probabilities are highest for the first and sixth categories. This u-shaped distribution is diminished by using `normal(0, 1)`. Making the standard deviation even smaller introduces divergent transitions.
 
 Fit the model.
 ```{r}
@@ -390,11 +395,123 @@ fit1 <- brm(formula = formula,
 fixef(fit1)
 
 #save(fit1, file = "fit1.RData")
+#load("fit1.RData")
 fit1_out <- predict(fit1, probs = c(0, 1))
 # stancode(fit1)
 
 fit1.df <- posterior_samples(fit1)
 ```
+
+Extracting and visualizing tidy draws from brms models. https://cran.r-project.org/web/packages/tidybayes/vignettes/tidy-brms.html
+```{r}
+library(tidybayes)
+
+get_variables(fit1)
+
+fit1 %>%
+  spread_draws(b_Yrs) %>%
+  head(10)
+
+fit1 %>%
+  spread_draws(b_Yrs, b_CAPEs) %>%
+  median_qi(b_Yrs, b_CAPEs)
+
+fit1 %>%
+  gather_draws(b_Yrs, b_dists) %>%
+  median_qi()
+```
+
+Add a plot. Fixed effects. Highest density interval.
+```{r}
+(p1 <- fit1 %>%
+  gather_draws(b_Yrs, b_dists, b_CAPEs, b_HLCYs, b_BSs) %>%
+  median_hdi(.width = c(.95, .66)) %>%
+  ggplot(aes(y = .variable, x = .value, xmin = .lower, xmax = .upper)) +
+  geom_pointintervalh() +
+  geom_vline(xintercept = 0, col = "gray70") +
+  scale_y_discrete(labels = c("Bulk Shear", "CAPE", "Distance to City", "Helicity", "Year")) +
+  scale_x_continuous(limits = c(-.2, NA), breaks = c(-.2, 0, .2)) +
+  ylab("") + xlab("Coefficient Value") +
+  ggtitle("A") +
+  theme_minimal() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) )
+```
+
+Plot monthly random effects.
+```{r}
+fit1 %>%
+  gather_draws(r_mo[1, Intercept]) %>%
+  median_hdi()
+
+( p2 <- fit1 %>%
+  gather_draws(r_mo[1, Intercept]) %>%
+  median_hdi(.width = c(.95, .66)) %>%
+  rename(Month = `1`) %>%
+  ggplot(aes(x = Month, y = .value, xmin = .lower, xmax = .upper)) +
+  geom_hline(yintercept = 0, col = "gray70") +
+  geom_pointinterval() +
+  scale_x_continuous(limits = c(1, 12), breaks = 1:12, labels = month.abb) +
+  scale_y_continuous(limits = c(-.8, .8)) +
+  ylab("Coefficient Value") + xlab("") +
+  ggtitle("B") +
+  theme_minimal() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) )
+
+ggarrange(p1, p2, widths = c(1, 1.3))
+```
+### Figure: Posterior median and highest posterior density intervals for the model's fixed effects.
+
+Posterior fits.
+```{r}
+library(modelr)
+library(tidyr)
+
+#BSs <- seq(-3, 2.5, by = .5)
+fitted <- df2 %>%
+  data_grid(Yrs = 0, dists = -1.3, CAPEs = 0, HLCYs = 0, BSs = c(-3, -1, 0, 2.5), id = 30, mo = 5) %>%
+  add_fitted_draws(fit1, n = 10) 
+
+x <- fitted %>%
+  group_by(.draw, BSs) %>%
+  arrange(.category) %>%
+  mutate(cs = cumsum(.value)) 
+
+tpk.df <- data.frame(X = rep(c(-3, -1, 0, 2.5), each = 10),
+                     S = rep(1:10, times = 4),
+                     EF0 = x$cs[x$.category == 1],
+                     EF1 = x$cs[x$.category == 2],
+                     EF2 = x$cs[x$.category == 3],
+                     EF3 = x$cs[x$.category == 4],
+                     EF4 = x$cs[x$.category == 5])
+ggplot(tpk.df, aes(x = X, y = EF0, group = S)) +
+  geom_line(color = "#EFF3FF") +
+  geom_line(aes(y = EF1), color = "#BDD7E7") +
+  geom_line(aes(y = EF2), color = "#6BAED6") +
+  geom_line(aes(y = EF3), color = "#3182BD") +
+  geom_line(aes(y = EF4), color = "#08519C") +
+  scale_y_continuous(limits = c(0, 1)) +
+  xlab("Bulk Shear (m/s)") + ylab("Cumulative Proportion")
+  
+ggplot(aes(x = BSs, y = cs, group = .draw, color = .category)) +
+  geom_point()
+
+```
+
+Posterior predictive fits.
+```{r}
+predicted <- df2 %>%
+  data_grid(Yrs = 0, dists = -1.3, CAPEs = 0, HLCYs = 0, BSs = c(-3, 0, 2.5), id = 30, mo = 5) %>%
+  add_predicted_draws(fit1) 
+
+dat <- df2[df2$id == 30,] 
+table(dat$maxEF)/nrow(dat)
+
+table(predicted$.prediction)/nrow(predicted)
+
+```
+
 
 ```{r}
 library(lme4)
