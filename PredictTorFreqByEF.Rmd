@@ -463,43 +463,79 @@ ggarrange(p1, p2, widths = c(1, 1.3))
 ```
 ### Figure: Posterior median and highest posterior density intervals for the model's fixed effects.
 
-Posterior fits.
+Posterior predictions on the cumulative probability scale.
 ```{r}
 library(modelr)
 library(tidyr)
 
-#BSs <- seq(-3, 2.5, by = .5)
-fitted <- df2 %>%
-  data_grid(Yrs = 0, dists = -1.3, CAPEs = 0, HLCYs = 0, BSs = c(-3, -1, 0, 2.5), id = 30, mo = 5) %>%
-  add_fitted_draws(fit1, n = 10) 
+BSs <- c(-2.5, -2, -1.5, -1, -0.5,  0,  0.5,  1, 1.5,  2,  2.5)
 
-x <- fitted %>%
+fitted <- df2 %>%
+  data_grid(Yrs = 0, dists = -1.3, CAPEs = 0, HLCYs = 0, 
+            BSs = c(-2.5, -2, -1.5, -1, -0.5,  0,  0.5,  1, 1.5,  2,  2.5), 
+            id = NA, mo = NA) %>%
+  add_fitted_draws(fit1, n = 100)
+
+out <- fitted %>%
   group_by(.draw, BSs) %>%
   arrange(.category) %>%
   mutate(cs = cumsum(.value)) 
 
-tpk.df <- data.frame(X = rep(c(-3, -1, 0, 2.5), each = 10),
-                     S = rep(1:10, times = 4),
-                     EF0 = x$cs[x$.category == 1],
-                     EF1 = x$cs[x$.category == 2],
-                     EF2 = x$cs[x$.category == 3],
-                     EF3 = x$cs[x$.category == 4],
-                     EF4 = x$cs[x$.category == 5])
-ggplot(tpk.df, aes(x = X, y = EF0, group = S)) +
-  geom_line(color = "#EFF3FF") +
-  geom_line(aes(y = EF1), color = "#BDD7E7") +
-  geom_line(aes(y = EF2), color = "#6BAED6") +
-  geom_line(aes(y = EF3), color = "#3182BD") +
-  geom_line(aes(y = EF4), color = "#08519C") +
+levels(out$.category) <- c("EF0", "EF1", "EF2", "EF3", "EF4", "EF5")
+
+ggplot(out, aes(x = .value, y = factor(BSs))) +
+#  geom_density_ridges_gradient(col = "gray70", fill = "gray70", alpha = .3) +
+  geom_point(size = .2) +
+  coord_flip() +
+  facet_wrap(~ .category, scales = "free") +
+  ylab("Bulk Shear (m/s)") +
+  xlab("Predicted Chance of a Tornado\nCausing EF-level Damage") +
+  theme_minimal()
+
+outL <- melt(out, 
+             id.vars = c("BSs", ".draw", ".category"), 
+             measure.vars = c(".value", "cs"))
+
+outL %>%
+  filter(variable == ".value") %>%
+  group_by(BSs, .category) %>%
+  summarize(Avg = mean(value),
+            q25 = quantile(value, prob = .25),
+            q75 = quantile(value, prob = .75)) %>%
+ggplot(aes(x = BSs, y = Avg, col = .category)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = q25, ymax = q75, fill = .category), 
+              alpha = .7, col = NA) +
+  scale_color_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Blues") +
+  scale_fill_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Blues") +
   scale_y_continuous(limits = c(0, 1)) +
-  xlab("Bulk Shear (m/s)") + ylab("Cumulative Proportion")
-  
-ggplot(aes(x = BSs, y = cs, group = .draw, color = .category)) +
-  geom_point()
+  ylab("Predicted Chance of a Tornado\nCausing EF-level Damage") +
+  xlab("Bulk Shear (m/s)") +
+  theme_minimal() 
+
+tpk.df <- data.frame(X = rep(BSs, each = 100),
+                     S = rep(1:100, times = length(BSs)),
+                     EF0 = out$cs[out$.category == "EF0"],
+                     EF1 = out$cs[out$.category == "EF1"],
+                     EF2 = out$cs[out$.category == "EF2"],
+                     EF3 = out$cs[out$.category == "EF3"],
+                     EF4 = out$cs[out$.category == "EF4"])
+
+ggplot(tpk.df, aes(x = X, y = EF0, group = S)) +
+  geom_line(aes(color = "EF0")) +
+  geom_line(aes(y = EF1, color = "EF1")) +
+  geom_line(aes(y = EF2, color = "EF2")) +
+  geom_line(aes(y = EF3, color = "EF3")) +
+  geom_line(aes(y = EF4, color = "EF4")) +
+  scale_y_continuous(limits = c(0, 1)) +
+  scale_colour_manual("", breaks = c("EF4", "EF3", "EF2", "EF1", "EF0"), 
+                      values = c("#EFF3FF", "#BDD7E7", "#6BAED6", "#3182BD", "#08519C")) +
+  xlab("Bulk Shear (m/s)") + ylab("Cumulative Proportion") +
+  theme_minimal()
 
 ```
 
-Posterior predictive fits.
+Posterior predictive counts.
 ```{r}
 predicted <- df2 %>%
   data_grid(Yrs = 0, dists = -1.3, CAPEs = 0, HLCYs = 0, BSs = c(-3, 0, 2.5), id = 30, mo = 5) %>%
