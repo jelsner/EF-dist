@@ -589,7 +589,7 @@ M6 <- ggarrange(p1 +
                     legend.position = 'none'),
           nrow = 2)
 ```
-### Figure: Marginal effects of the covariates. (A) Bulk shear, CAPE (B), (C) distance to nearest town, and (D) storm relative helicity.
+### Figure: Marginal effects of the covariates. (A) Bulk shear, CAPE (B), distance to nearest town (C), and storm relative helicity (D).
 
 Posterior predictions on the cumulative probability scale.
 ```{r}
