@@ -11,7 +11,7 @@ Abstract for the European SLS conference in Krakow, POLAND, 4-8 November 2019.
 Abstract Deadline: April 24, 2019
 Submission link: https://meetings.copernicus.org/ecss2019/abstract_management/
 
-Predicting tornado count distributions by EF rating
+Estimating tornado counts by EF rating on days with many tornadoes
 
 Elsner/Schroder
 
@@ -461,7 +461,7 @@ fit1 %>%
 
 ggarrange(p1, p2, widths = c(1, 1.3))
 ```
-### Figure: Posterior median and highest posterior density intervals for the model's fixed effects.
+### Figure: Posterior median and highest posterior probability intervals for the model's fixed effects.
 
 Another way to examine the model results is to display the marginal effects. Here we examine the marginal effect of bulk shear. We use the mean value for all the other covariates.
 
@@ -544,7 +544,7 @@ ggDist <- ggDist %>%
   theme_minimal() )
 ```
 
-Marginal plot. Helicity. Units on helicity do not appear to be correct. Should be in the range of 50-400 m^2/s^2. Removed one group to fix this.
+Marginal plot. Helicity. Units should be in the range of 50-400 m^2/s^2.
 ```{r}
 ggHLCY <- gg[[4]] %>%
   filter(cats__ != 6)
@@ -590,6 +590,37 @@ M6 <- ggarrange(p1 +
           nrow = 2)
 ```
 ### Figure: Marginal effects of the covariates. (A) Bulk shear, CAPE (B), distance to nearest town (C), and storm relative helicity (D).
+
+Marginal plot for trend.
+```{r}
+
+gg <- marginal_effects(fit1, effects = "Yrs", categorical = TRUE,
+                       conditions = data.frame(dists = c(-1.2, 7.4), BSs = 0, CAPEs = 0, HLCYs = 0))
+ggYr <- gg[[1]] %>%
+  mutate(ef = as.integer(cats__)) %>%
+  filter(ef <= 3)
+levels(ggYr$cats__) <- c("0", "1", "2", "3", "4", "5")
+
+Yrs <- scale(df2$Year)
+scale <- attr(Yrs, "scaled:scale")
+center <- attr(Yrs, "scaled:center")
+
+ggYr <- ggYr %>%
+  mutate(Yr = Yrs * scale + center)
+
+( p <- ggplot(ggYr, aes(x = Yr, y = estimate__, col = cats__)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = lower__, ymax = upper__, fill = cats__), 
+              alpha = .7, col = NA) +
+  scale_color_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Reds") +
+  scale_fill_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Reds") +
+  scale_y_continuous(limits = c(0, 1)) +
+  scale_x_continuous(breaks = seq(1995, 2015, by = 5)) +
+    facet_wrap(~ dists) +
+  ylab("Relative Chance of a Tornado\nCausing EF-level Damage") +
+  xlab("Year") +
+  theme_minimal() )
+```
 
 Posterior predictions on the cumulative probability scale.
 ```{r}
@@ -697,7 +728,7 @@ library(bayestestR)
 equivalence_test(fit1)
 ```
 
-Examine potential interactions.
+Examine potential interactions. In particular we might hypothesize that the rural bias is diminishing over time. We see with the number of tornadoes (PLoS ONE? Jagger, Elsner, Widen https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0131876) This would show up as an interaction between distance to city and year. From the PLoS ONE 2015 paper: The interaction term is also statistically significant with a posterior mean of −.0045, indicating a decrease in the influence of population density. In fact, the model indicates that the influence of population density on the tornado reports will approach zero by the year 2017 [β1 + β3 (2017 − 1991) ≈ 0], although practically there will likely continue to be at least some influence of population on the reports for some time to come.
 ```{r}
 formula2 <- maxEF1 ~ Yrs * dists + CAPEs + HLCYs + BSs  + (1|mo) + (1|id)
 
@@ -716,7 +747,7 @@ equivalence_test(fit2)
 
 fit2.df <- posterior_samples(fit2)
 ```
-There is no evidence to support an interaction between BS and CAPE or HLCY and CAPE or Yr and dist.
+There is no evidence to support an interaction between BS and CAPE or HLCY and CAPE or Year and distance to city.
 
 Here we examine whether the effect of bulk shear is different across different EF ratings.
 ```{r, eval=FALSE}
