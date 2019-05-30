@@ -608,16 +608,21 @@ center <- attr(Yrs, "scaled:center")
 ggYr <- ggYr %>%
   mutate(Yr = Yrs * scale + center)
 
+ggYr$CityRural <- rep(rep(c("Within a City or Town", "In a Remote Area"), each = 100), times = 3)
+
+#supp.labs <- c("Within a City or Town", "In a Remote Area")
+
 ( p <- ggplot(ggYr, aes(x = Yr, y = estimate__, col = cats__)) +
   geom_line() +
   geom_ribbon(aes(ymin = lower__, ymax = upper__, fill = cats__), 
               alpha = .7, col = NA) +
-  scale_color_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Reds") +
-  scale_fill_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Reds") +
+  scale_color_brewer(name = "", label = c("EF0", "EF1", "EF2", "EF3", "EF4", "EF5"), palette = "Reds") +
+  scale_fill_brewer(name = "", label = c("EF0", "EF1", "EF2", "EF3", "EF4", "EF5"), palette = "Reds") +
   scale_y_continuous(limits = c(0, 1)) +
   scale_x_continuous(breaks = seq(1995, 2015, by = 5)) +
-    facet_wrap(~ dists) +
-  ylab("Relative Chance of a Tornado\nCausing EF-level Damage") +
+    facet_wrap(~ CityRural) +
+#    facet_wrap(~ CityRural, labeller = labeller(dists = supp.labs)) +
+  ylab("Chance of EF-level Damage") +
   xlab("Year") +
   theme_minimal() )
 ```
