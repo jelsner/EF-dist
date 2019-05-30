@@ -1,5 +1,5 @@
 ---
-title: "Forecasting tornado count distributions by EF damage rating"
+title: "Estimating tornado count distributions by EF damage rating"
 author: "James Elsner"
 date: "2/14/2019"
 output: github_notebook
