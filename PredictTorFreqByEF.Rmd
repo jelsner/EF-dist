@@ -463,12 +463,146 @@ ggarrange(p1, p2, widths = c(1, 1.3))
 ```
 ### Figure: Posterior median and highest posterior density intervals for the model's fixed effects.
 
+Another way to examine the model results is to display the marginal effects. Here we examine the marginal effect of bulk shear. We use the mean value for all the other covariates.
+
+Marginal plot. Bulk shear.
+```{r}
+gg <- marginal_effects(fit1, categorical = TRUE)
+ggBS <- gg[[5]] %>%
+  filter(cats__ != 6)
+levels(ggBS$cats__) <- c("0", "1", "2", "3", "4")
+
+BSs <- scale(df2$maxBS)
+scale <- attr(BSs, "scaled:scale")
+center <- attr(BSs, "scaled:center")
+
+ggBS <- ggBS %>%
+  mutate(BS = BSs * scale + center)
+
+( p1 <- ggplot(ggBS, aes(x = BS, y = estimate__, col = cats__)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = lower__, ymax = upper__, fill = cats__), 
+              alpha = .7, col = NA) +
+  scale_color_brewer(name = "EF", label = c("0", "1", "2", "3", "4"), palette = "Blues") +
+  scale_fill_brewer(name = "EF", label = c("0", "1", "2", "3", "4"), palette = "Blues") +
+  scale_y_continuous(limits = c(0, 1)) +
+  ylab("Relative Chance of a Tornado\nCausing EF-level Damage") +
+  xlab("Bulk Shear (m/s)") +
+    ggtitle("A") +
+  theme_minimal() )
+```
+
+Marginal plot. CAPE. This won't work for model 6 since The effect of CAPE varies by EF rating.
+```{r}
+ggCAPE <- gg[[3]] %>%
+  filter(cats__ != 6)
+levels(ggCAPE$cats__) <- c("0", "1", "2", "3", "4")
+
+CAPEs <- scale(df2$maxCAPE)
+scale <- attr(CAPEs, "scaled:scale")
+center <- attr(CAPEs, "scaled:center")
+
+ggCAPE <- ggCAPE %>%
+  mutate(CAPE = CAPEs * scale + center)
+
+( p2 <- ggplot(ggCAPE, aes(x = CAPE, y = estimate__, col = cats__)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = lower__, ymax = upper__, fill = cats__), 
+              alpha = .7, col = NA) +
+  scale_color_brewer(name = "EF", label = c("0", "1", "2", "3", "4"), palette = "Blues") +
+  scale_fill_brewer(name = "EF", label = c("0", "1", "2", "3", "4"), palette = "Blues") +
+  scale_y_continuous(limits = c(0, 1)) +
+  ylab("Relative Chance of a Tornado\nCausing EF-level Damage") +
+  xlab("CAPE (J/kg)") +
+    ggtitle("B") +
+  theme_minimal() )
+``` 
+
+Marginal plot. Distance to nearest city.
+```{r}
+ggDist <- gg[[2]] %>%
+  filter(cats__ != 6)
+levels(ggDist$cats__) <- c("0", "1", "2", "3", "4")
+
+dists <- scale(df2$dist)
+scale <- attr(dists, "scaled:scale")
+center <- attr(dists, "scaled:center")
+
+ggDist <- ggDist %>%
+  mutate(dist = dists * scale + center)
+
+( p3 <- ggplot(ggDist, aes(x = dist/1000, y = estimate__, col = cats__)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = lower__, ymax = upper__, fill = cats__), 
+              alpha = .7, col = NA) +
+  scale_color_brewer(name = "EF", label = c("0", "1", "2", "3", "4"), palette = "Blues") +
+  scale_fill_brewer(name = "EF", label = c("0", "1", "2", "3", "4"), palette = "Blues") +
+  scale_y_continuous(limits = c(0, 1)) +
+  ylab("Relative Chance of a Tornado\nCausing EF-level Damage") +
+  xlab("Distance to nearest city (km)") +
+    ggtitle("C") +
+  theme_minimal() )
+```
+
+Marginal plot. Helicity. Units on helicity do not appear to be correct. Should be in the range of 50-400 m^2/s^2. Removed one group to fix this.
+```{r}
+ggHLCY <- gg[[4]] %>%
+  filter(cats__ != 6)
+levels(ggHLCY$cats__) <- c("0", "1", "2", "3", "4")
+
+HLCYs <- scale(df2$maxHLCY)
+scale <- attr(HLCYs, "scaled:scale")
+center <- attr(HLCYs, "scaled:center")
+
+ggHLCY <- ggHLCY %>%
+  mutate(HLCY = HLCYs * scale + center)
+
+( p4 <- ggplot(ggHLCY, aes(x = HLCY, y = estimate__, col = cats__)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = lower__, ymax = upper__, fill = cats__), 
+              alpha = .7, col = NA) +
+  scale_color_brewer(name = "EF", label = c("0", "1", "2", "3", "4"), palette = "Blues") +
+  scale_fill_brewer(name = "EF", label = c("0", "1", "2", "3", "4"), palette = "Blues") +
+  scale_y_continuous(limits = c(0, 1)) +
+  ylab("Relative Chance of a Tornado\nCausing EF-level Damage") +
+  xlab("Storm Relative Helicity (J/kg)") +
+    ggtitle("D") +
+  theme_minimal() )
+```
+
+https://aosmith.rbind.io/2019/05/13/small-multiples-plot/
+```{r}
+library(egg)
+
+M6 <- ggarrange(p1 +
+              theme(legend.position = 'none'), 
+          p2 + 
+               theme(axis.text.y = element_blank(),
+                     axis.ticks.y = element_blank(),
+                     axis.title.y = element_blank()),
+          p3 +
+              theme(legend.position = 'none'),
+          p4 + 
+              theme(axis.text.y = element_blank(),
+                    axis.ticks.y = element_blank(),
+                    axis.title.y = element_blank(),
+                    legend.position = 'none'),
+          nrow = 2)
+```
+### Figure: Marginal effects of the covariates. (A) Bulk shear, CAPE (B), distance to nearest town (C), and storm relative helicity (D).
+
 Posterior predictions on the cumulative probability scale.
 ```{r}
 library(modelr)
 library(tidyr)
 
-BSs <- c(-2.5, -2, -1.5, -1, -0.5,  0,  0.5,  1, 1.5,  2,  2.5)
+BSs <- scale(df2$maxBS)
+range(BSs)
+scale <- attr(BSs, "scaled:scale")
+center <- attr(BSs, "scaled:center")
+
+BS_labels <- seq(12, 44, 4)
+BS_breaks <- (BS_labels - center) / scale
 
 fitted <- df2 %>%
   data_grid(Yrs = 0, dists = -1.3, CAPEs = 0, HLCYs = 0, 
@@ -496,23 +630,28 @@ outL <- melt(out,
              id.vars = c("BSs", ".draw", ".category"), 
              measure.vars = c(".value", "cs"))
 
-outL %>%
-  filter(variable == ".value") %>%
+( p2 <- outL %>%
+  filter(variable == ".value", .category != "EF5") %>%
   group_by(BSs, .category) %>%
   summarize(Avg = mean(value),
             q25 = quantile(value, prob = .25),
             q75 = quantile(value, prob = .75)) %>%
-ggplot(aes(x = BSs, y = Avg, col = .category)) +
-  geom_line() +
+ ggplot(aes(x = BSs, y = Avg, col = .category)) +
   geom_ribbon(aes(ymin = q25, ymax = q75, fill = .category), 
               alpha = .7, col = NA) +
-  scale_color_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Blues") +
-  scale_fill_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Blues") +
+  geom_line() +
+  scale_color_manual(name = "", values = rep("white", each = 5), guide = "none") +
+#  scale_color_brewer(name = "", label = c("EF0", "EF1", "EF2", "EF3", "EF4"), palette = "Blues") +
+  scale_fill_brewer(name = "", label = c("EF0", "EF1", "EF2", "EF3", "EF4"), palette = "Blues") +
+  scale_x_continuous(breaks = BS_breaks, labels = BS_labels) +
   scale_y_continuous(limits = c(0, 1)) +
-  ylab("Predicted Chance of a Tornado\nCausing EF-level Damage") +
+  ylab("Chance of EF-level Damage") +
   xlab("Bulk Shear (m/s)") +
-  theme_minimal() 
+  ggtitle(label = "B") +
+  theme_minimal() +
+  theme(panel.grid = element_blank()) )
 
+BSs <- c(-2.5, -2, -1.5, -1, -0.5,  0,  0.5,  1, 1.5,  2,  2.5)
 tpk.df <- data.frame(X = rep(BSs, each = 100),
                      S = rep(1:100, times = length(BSs)),
                      EF0 = out$cs[out$.category == "EF0"],
@@ -521,33 +660,36 @@ tpk.df <- data.frame(X = rep(BSs, each = 100),
                      EF3 = out$cs[out$.category == "EF3"],
                      EF4 = out$cs[out$.category == "EF4"])
 
-ggplot(tpk.df, aes(x = X, y = EF0, group = S)) +
+( p1 <- ggplot(tpk.df, aes(x = X, y = EF0, group = S)) +
   geom_line(aes(color = "EF0")) +
   geom_line(aes(y = EF1, color = "EF1")) +
   geom_line(aes(y = EF2, color = "EF2")) +
   geom_line(aes(y = EF3, color = "EF3")) +
   geom_line(aes(y = EF4, color = "EF4")) +
   scale_y_continuous(limits = c(0, 1)) +
+  scale_x_continuous(breaks = BS_breaks, labels = BS_labels) +
   scale_colour_manual("", breaks = c("EF4", "EF3", "EF2", "EF1", "EF0"), 
                       values = c("#EFF3FF", "#BDD7E7", "#6BAED6", "#3182BD", "#08519C")) +
   xlab("Bulk Shear (m/s)") + ylab("Cumulative Proportion") +
-  theme_minimal()
+  ggtitle(label = "A") +
+  theme_minimal() +
+    theme(panel.grid = element_blank()) )
 
+ggarrange(p1, p2, widths = c(1, 1))
 ```
+### Figure: Posterior predictions for a range of bulk shear values. All other variables are set to average except distance-to-city which is set at zero.
 
-Posterior predictive counts.
+
+Posterior predictive counts match the observed counts.
 ```{r}
 predicted <- df2 %>%
-  data_grid(Yrs = 0, dists = -1.3, CAPEs = 0, HLCYs = 0, BSs = c(-3, 0, 2.5), id = 30, mo = 5) %>%
+  data_grid(Yrs = 0, dists = 0, CAPEs = 0, HLCYs = 0,  BSs = 0, id = NA, mo = NA) %>%
   add_predicted_draws(fit1) 
 
-dat <- df2[df2$id == 30,] 
-table(dat$maxEF)/nrow(dat)
-
+table(df2$maxEF1)/nrow(df2)
 table(predicted$.prediction)/nrow(predicted)
 
 ```
-
 
 ```{r}
 library(lme4)
@@ -555,7 +697,7 @@ library(bayestestR)
 equivalence_test(fit1)
 ```
 
-Examine potential interaction between HLCY and CAPE.
+Examine potential interactions.
 ```{r}
 formula2 <- maxEF1 ~ Yrs * dists + CAPEs + HLCYs + BSs  + (1|mo) + (1|id)
 
@@ -630,7 +772,7 @@ fit5.df <- posterior_samples(fit5)
 ```
 A negative coefficient indicates that as distance increases the proportion of storms rated EF0 decreases.
 
-Here we examine whether the effect of CAPE different across different EF ratings.
+Here we examine whether the effect of CAPE is different across different EF ratings.
 ```{r, eval=FALSE}
 formula6 <- maxEF1 ~ Yrs + dists + cs(CAPEs) + HLCYs + BSs + (1|mo) + (1|id)
 family6 <- "sratio"
@@ -645,9 +787,21 @@ fit6 <- brm(formula = formula6,
              seed = 91712)
 fixef(fit6)
 save(fit6, file = "fit6.RData")
+load(file = "fit6.RData")
 fit6.df <- posterior_samples(fit6)
 ```
 The positive coefficients indicate that as CAPE increases the proportion of storms rated EFx and higher increases. The magnitude of the coefficients increases systematically with higher EF rating indicating that the effect of CAPE is increasingly important for stronger tornadoes. The uncertainty values overlap.
+
+### Compare models
+
+When comparing two fitted models, we can estimate the difference in their expected predictive accuracy by the difference in elpd_loo or elpd_waic (or multiplied by -2, if desired, to be on the deviance scale). When using `loo_compare()`, the returned matrix will have one row per model and several columns of estimates. The values in the elpd_diff and se_diff columns of the returned matrix are computed by making pairwise comparisons between each model and the model with the largest ELPD (the model in the first row). For this reason the `elpd_diff` column will always have the value 0 in the first row (i.e., the difference between the preferred model and itself) and negative values in subsequent rows for the remaining models. elpd = expected log pointwise predictive density for a new dataset.
+```{r}
+fit1 <- add_criterion(fit1, "waic")
+fit6 <- add_criterion(fit6, "waic")
+loo_compare(fit1, fit6, criterion = "waic")
+```
+
+Model 1 has a lower WAIC as
 
 Cross validation. This takes a very long time.
 ```{r, eval=FALSE}
@@ -753,142 +907,6 @@ ggarrange(p3, p4, nrow = 1)
 ```
 ### Figure: Predicted proportion of tornadoes by EF category. A. Predictions from the first 10 posterior samples. B. Predictions based on the average over 4000 posterior samples.
 
-Another way to examine the model results is to display the marginal effects. Here we examine the marginal effect of bulk shear. We use the mean value for all the other covariates.
-
-Marginal plot. Bulk shear.
-```{r}
-gg <- marginal_effects(fit1, categorical = TRUE)
-ggBS <- gg[[5]]
-#ggBS <- gg[[4]]
-levels(ggBS$cats__) <- c("0", "1", "2", "3", "4", "5")
-
-BSs <- scale(df2$maxBS)
-scale <- attr(BSs, "scaled:scale")
-center <- attr(BSs, "scaled:center")
-
-ggBS <- ggBS %>%
-  mutate(BS = BSs * scale + center)
-
-( p5 <- ggplot(ggBS, aes(x = BS, y = estimate__, col = cats__)) +
-  geom_line() +
-  geom_ribbon(aes(ymin = lower__, ymax = upper__, fill = cats__), 
-              alpha = .7, col = NA) +
-  scale_color_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Blues") +
-  scale_fill_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Blues") +
-  scale_y_continuous(limits = c(0, 1)) +
-  ylab("Relative Chance of a Tornado\nCausing EF-level Damage") +
-  xlab("Bulk Shear (m/s)") +
-    ggtitle("A") +
-  theme_minimal() )
-```
-
-Marginal plot. Distance to nearest city.
-```{r}
-ggDist <- gg[[2]]
-levels(ggDist$cats__) <- c("0", "1", "2", "3", "4", "5")
-
-dists <- scale(df2$dist)
-scale <- attr(dists, "scaled:scale")
-center <- attr(dists, "scaled:center")
-
-ggDist <- ggDist %>%
-  mutate(dist = dists * scale + center)
-
-( p6 <- ggplot(ggDist, aes(x = dist/1000, y = estimate__, col = cats__)) +
-  geom_line() +
-  geom_ribbon(aes(ymin = lower__, ymax = upper__, fill = cats__), 
-              alpha = .7, col = NA) +
-  scale_color_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Blues") +
-  scale_fill_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Blues") +
-  scale_y_continuous(limits = c(0, 1)) +
-  ylab("Relative Chance of a Tornado\nCausing EF-level Damage") +
-  xlab("Distance to nearest city (km)") +
-    ggtitle("C") +
-  theme_minimal() )
-```
-
-Marginal plot. CAPE. This won't work for model 6 since The effect of CAPE varies by EF rating.
-```{r}
-ggCAPE <- gg[[3]]
-levels(ggCAPE$cats__) <- c("0", "1", "2", "3", "4", "5")
-
-CAPEs <- scale(df2$maxCAPE)
-scale <- attr(CAPEs, "scaled:scale")
-center <- attr(CAPEs, "scaled:center")
-
-ggCAPE <- ggCAPE %>%
-  mutate(CAPE = CAPEs * scale + center)
-
-( p7 <- ggplot(ggCAPE, aes(x = CAPE, y = estimate__, col = cats__)) +
-  geom_line() +
-  geom_ribbon(aes(ymin = lower__, ymax = upper__, fill = cats__), 
-              alpha = .7, col = NA) +
-  scale_color_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Blues") +
-  scale_fill_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Blues") +
-  scale_y_continuous(limits = c(0, 1)) +
-  ylab("Relative Chance of a Tornado\nCausing EF-level Damage") +
-  xlab("CAPE (J/kg)") +
-    ggtitle("B") +
-  theme_minimal() )
-```
-
-Marginal plot. Helicity. Units on helicity do not appear to be correct. Should be in the range of 50-400 m^2/s^2. Removed one group to fix this.
-```{r}
-ggHLCY <- gg[[4]]
-#ggHLCY <- gg[[3]]
-levels(ggHLCY$cats__) <- c("0", "1", "2", "3", "4", "5")
-
-HLCYs <- scale(df2$maxHLCY)
-scale <- attr(HLCYs, "scaled:scale")
-center <- attr(HLCYs, "scaled:center")
-
-ggHLCY <- ggHLCY %>%
-  mutate(HLCY = HLCYs * scale + center)
-
-( p8 <- ggplot(ggHLCY, aes(x = HLCY, y = estimate__, col = cats__)) +
-  geom_line() +
-  geom_ribbon(aes(ymin = lower__, ymax = upper__, fill = cats__), 
-              alpha = .7, col = NA) +
-  scale_color_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Blues") +
-  scale_fill_brewer(name = "EF", label = c("0", "1", "2", "3", "4", "5"), palette = "Blues") +
-  scale_y_continuous(limits = c(0, 1)) +
-  ylab("Relative Chance of a Tornado\nCausing EF-level Damage") +
-  xlab("Storm Relative Helicity (J/kg)") +
-    ggtitle("D") +
-  theme_minimal() )
-```
-
-```{r}
-ggarrange(p5, p7, p6, p8)
-```
-### Figure: Marginal effects of the covariates. (A) Bulk shear, CAPE (B), (C) distance to nearest town, and (D) storm relative helicity.
-
-https://aosmith.rbind.io/2019/05/13/small-multiples-plot/
-```{r}
-library(egg)
-ggarrange(p5 +
-              theme(legend.position = 'none'), 
-          p7 + 
-               theme(axis.text.y = element_blank(),
-                     axis.ticks.y = element_blank(),
-                     axis.title.y = element_blank()),
-          nrow = 1)
-
-M6 <- ggarrange(p5 +
-              theme(legend.position = 'none'), 
-          p7 + 
-               theme(axis.text.y = element_blank(),
-                     axis.ticks.y = element_blank(),
-                     axis.title.y = element_blank()),
-          p6 +
-              theme(legend.position = 'none'),
-          p8 + 
-              theme(axis.text.y = element_blank(),
-                    axis.ticks.y = element_blank(),
-                    axis.title.y = element_blank(),
-                    legend.position = 'none'),
-          nrow = 2)
-```
           
 
 Add some specific numbers. Make predictions with the `predict()` function specifying values. `id = 5` corresponds to the outbreak delineated on the map in Figure 1.
