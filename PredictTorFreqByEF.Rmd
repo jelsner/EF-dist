@@ -25,7 +25,7 @@ library(dplyr)
 library(ggplot2)
 ```
 
-Load the data. The study uses the data collated in the `tor-cluster` GitHub project. The method for determining the big days is detailed in Schroder and Elsner (2019). Briefly, it groups tornadoes occurring in the period 1994 through 2017 based on space-time distances between genesis locations. If two tornadoes occur close in space and time, they are grouped together. The procedure stops when the the space-time distance threshold exceeds 50K meter-seconds.
+Load the data.
 ```{r}
 load("~/Desktop/Projects/EF-dist/BigDays.RData")
 st_crs(Torn.sfT)
@@ -36,7 +36,7 @@ st_crs(BigDays.sfdfT)
 
 The simple feature `BigDays.sfdfT` contains group-level data including environmental variables. The simple feature `Torn.sfT` contains tornado-level data for all tornadoes on the big days. Note: they have different CRSs.
 
-A single group can be across more than one convective day. And there can be more than one group on a convective day. ID provides a unique label for the date and group number.
+A single group can be across more than one calendar day. And there can be more than one group on a convective day. ID provides a unique label for the date and group number.
 ```{r}
 dim(BigDays.sfdfT)
 length(unique(BigDays.sfdfT$ID))
