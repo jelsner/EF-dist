@@ -1,5 +1,5 @@
 ---
-title: "Estimating tornado counts by EF damage rating"
+title: "Tornado damage rating probabilities estimated with cumulative logistic regression"
 author: "James Elsner"
 date: "2/14/2019"
 output: github_notebook
@@ -11,7 +11,7 @@ Abstract for the European SLS conference in Krakow, POLAND, 4-8 November 2019.
 Abstract Deadline: April 24, 2019
 Submission link: https://meetings.copernicus.org/ecss2019/abstract_management/
 
-Estimating tornado counts by EF rating on days with many tornadoes
+Tornado damage rating probabilities estimated with cumulative logistic regression
 
 Elsner/Schroder
 
@@ -63,18 +63,19 @@ BDt <- Torn.sfT %>%
   filter(ID == IDno) %>%
   mutate(magF = factor(mag, levels = 0:4))
 
-tm_shape(BD) +
-  tm_polygons() +
+
 tm_shape(sts1, is.master = TRUE) +
   tm_borders() +
 tm_shape(sts) +
-  tm_borders(col = "gray70") +
-  tm_text("name", size = .6, remove.overlap = TRUE) +
+  tm_borders(col = "gray90") +
+  tm_text("name", size = .6, remove.overlap = TRUE, col = "gray80") +
+tm_shape(BD) +
+  tm_polygons(col = "gray80", alpha = .3) +
 tm_shape(BDt) +
-  tm_dots(size = .5) +
-tm_compass(position = c("left", "bottom")) +
-tm_scale_bar(position = c("left", "bottom")) +
-tm_layout(title = "April 26, 1994")
+  tm_dots(size = .3, alpha = .3) +
+tm_compass(position = c("left", "bottom"), color.dark = "gray70") +
+tm_scale_bar(position = c("left", "bottom"), color.dark = "gray70") +
+tm_layout(title = "April 26, 1994", title.bg.color = "white")
 ```
 ### Figure: Locations of tornadoes (origin) during one convective-day group used in this study.
 
@@ -98,17 +99,17 @@ ggplot(BigDays.sfdfT, aes(x = as.factor(Month))) +
 #            subtitle = "For Groups With At Least Ten Tornadoes (1994-2017)") +
   theme_minimal() )
 
-ggplot(BigDays.sfdfT, aes(x = nT)) +
-  geom_histogram(fill = "gray70", binwidth = 5) +
-  scale_y_continuous(limits = c(0, NA)) +
-  ylab("Number of Groups") + xlab("Number of Tornadoes") +
-  theme_minimal() 
+#ggplot(BigDays.sfdfT, aes(x = nT)) +
+#  geom_histogram(fill = "gray70", binwidth = 5) +
+#  scale_y_continuous(limits = c(0, NA)) +
+#  ylab("Number of Groups") + xlab("Number of Tornadoes") +
+#  theme_minimal() 
 ```
 ### Figure: Monthly frequency of convective-day groups for groups with at least ten tornadoes (1994--2017).
 
 We join the environmental variables at the group-level with the data at the tornado level.
 
-Given a group of at least ten tornadoes within a single convective 24-hour period, we extract environmental variables from the North American Regional Reanalysis (NARR) obtained from the the National Center for Atmospheric Research (NCAR). Variables are available on a 32.4 km grid and represent of a blend of model and observational sounding data.
+Given a group of at least ten tornadoes within a single convective 24-hour period (12 UTC to 12 UTC), we extract environmental variables from the North American Regional Reanalysis (NARR) obtained from the the National Center for Atmospheric Research (NCAR). Variables are available on a 32.4 km grid and represent of a blend of model and observational sounding data.
 
 We use the 3-hourly files that contain environmental data for each day ranging from 0Z to 21Z in 3-hour increments. For each tornado group, we calculate the closest 3-hour time before the occurrence of the first tornado. We pick a time before the event starts because we want to sample the pre-storm environment. We use tornado groups occurring between January 1994 and December 2017 resulting in a total of 16,504 tornadoes in 742 groups.
 ```{r}
@@ -117,7 +118,7 @@ df <- as.data.frame(BigDays.sfdfT) %>%
   left_join(as.data.frame(Torn.sfT), by = "ID")
 ```
 
-For each tornado we compute the distance to the nearest city/town. Distance-to-nearest city/town serves as a proxy for the potential number of damage targets. Tornadoes occurring close to towns or cities (short distances) will, on average, have a much higher number of nearby targets.
+For each tornado we compute the distance to the nearest city/town. Distance-to-nearest city/town serves as a proxy for the potential number of damage targets. All else being equal, a tornado occurring in the vicinity of a city (short distance-to-nearest town) will, on average, have a greater opportunity to impact a damage target than a tornado that occurs in a rural area (long distance-to-nearest town).
 ```{r}
 C.sf <- us_cities() %>%
   st_transform(crs = 102004)
@@ -247,7 +248,7 @@ library(ggpubr)
 ggarrange(p1, p2)
 ```
 
-What we really want is the prior distribution of these intercepts. This allows us to take into account sample size and prior information, as well as insert predictor variables.
+What we really want is the posterior distribution of these intercepts. This allows us to take into account sample size and prior information, as well as insert predictor variables.
 
 To use Bayes' theorem to compute the posterior distribution of these intercepts, we will need to compute the likelihood for each possible EF rating. So the last step in constructing the basic model fitting engine for these ordered categorical outcomes is to use cumulative probabilities $\Pr(y_i \le k)$ to compute the likelihood $\Pr(y_i = k)$.
 
@@ -308,6 +309,14 @@ df2$CINs <- scale(df2$minCIN)
 
 dim(df2)
 length(unique(df2$ID))
+
+df2$ID[df2$maxCAPE == 0]
+
+#"19951111586"
+#"201204214863"
+
+library(xtable)
+df2 %>%  select(Year, dist, maxCAPE, maxHLCY, maxBS, minCIN) %>% summary()
 ```
 
 The final number of tornadoes modeled is 16483 across 741 groups.
@@ -363,8 +372,9 @@ Model with predictors. Start with some default priors (for example `"normal(0,5)
 ```{r}
 family <- brms::cumulative(threshold = "flexible")
 formula <- maxEF1 ~ Yrs + dists + CAPEs + HLCYs + BSs + (1|mo) + (1|id)
+#formulaA <- maxEF1 ~ dists + BSs + (BSs|id) 
 
-get_prior(formula, data = df2, family = family)
+get_prior(formulaA, data = df2, family = family)
 
 prior2 <- brm(formula = formula,
            data = df2,
@@ -381,6 +391,8 @@ prior_out2 <- predict(prior2, probs = c(0, 1))
 
 With `normal(0, 5)` the probabilities are highest for the first and sixth categories. This u-shaped distribution is diminished by using `normal(0, 1)`. Making the standard deviation even smaller introduces divergent transitions.
 
+http://m-clark.github.io/posts/2019-05-14-shrinkage-in-mixed-models/
+
 Fit the model.
 ```{r}
 fit1 <- brm(formula = formula,
@@ -388,7 +400,8 @@ fit1 <- brm(formula = formula,
             family = family,
             prior = c(set_prior("normal(0, 1)", class = "b"),
                      set_prior("student_t(3, 0, 10)", class = "Intercept"),
-                     set_prior("student_t(3, 0, 10)", class = "sd")),
+                     set_prior("student_t(3, 0, 10)", class = "sd"),
+                     set_prior("lkj(1)", class = "cor")),
            control = list(max_treedepth = 15),
            seed = 78121)
 
@@ -659,10 +672,10 @@ ggplot(out, aes(x = .value, y = factor(BSs))) +
   coord_flip() +
   facet_wrap(~ .category, scales = "free") +
   ylab("Bulk Shear (m/s)") +
-  xlab("Predicted Chance of a Tornado\nCausing EF-level Damage") +
+  xlab("Estimated Chance of a Tornado\nCausing EF-level Damage") +
   theme_minimal()
 
-outL <- melt(out, 
+outL <- reshape2::melt(out, 
              id.vars = c("BSs", ".draw", ".category"), 
              measure.vars = c(".value", "cs"))
 
@@ -714,6 +727,69 @@ tpk.df <- data.frame(X = rep(BSs, each = 100),
 ggarrange(p1, p2, widths = c(1, 1))
 ```
 ### Figure: Posterior predictions for a range of bulk shear values. All other variables are set to average except distance-to-city which is set at zero.
+
+Specific cases of bulk shear and then distance to city
+```{r}
+BSs <- scale(df2$maxBS)
+range(BSs)
+scale <- attr(BSs, "scaled:scale")
+center <- attr(BSs, "scaled:center")
+
+BS <- c(10, 40)
+BSsR <- (BS - center)/scale
+
+fitted <- df2 %>%
+  data_grid(Yrs = 0, dists = -1.3, CAPEs = 0, HLCYs = 0, 
+            BSs =seq_range(BSsR, 2),
+            id = NA, mo = NA) %>%
+  add_fitted_draws(fit1, n = 100) 
+
+out <- fitted %>%
+  group_by(.draw, BSs) %>%
+  arrange(.category) %>%
+  mutate(cs = cumsum(.value)) 
+
+levels(out$.category) <- c("EF0", "EF1", "EF2", "EF3", "EF4", "EF5")
+
+out %>%
+  filter(.category != "EF5") %>%
+  mutate(BS = BSs * scale + center) %>%
+  group_by(BS, .category) %>%
+  summarize(Avg = mean(.value),
+            q25 = quantile(.value, prob = .25),
+            q75 = quantile(.value, prob = .75))
+
+dists <- scale(df2$dist)
+range(dists)
+scale <- attr(dists, "scaled:scale")
+center <- attr(dists, "scaled:center")
+
+dist <- c(0, 50000, 100000)
+distsR <- (dist - center)/scale
+
+fitted <- df2 %>%
+  data_grid(Yrs = 0, 
+            dists = seq_range(distsR, 3),
+            CAPEs = 0, HLCYs = 0, 
+            BSs = 0,
+            id = NA, mo = NA) %>%
+  add_fitted_draws(fit1, n = 100) 
+
+out <- fitted %>%
+  group_by(.draw, dists) %>%
+  arrange(.category) %>%
+  mutate(cs = cumsum(.value)) 
+
+levels(out$.category) <- c("EF0", "EF1", "EF2", "EF3", "EF4", "EF5")
+
+out %>%
+#  filter(.category != "EF5") %>%
+  mutate(dist = dists * scale + center) %>%
+  group_by(dist, .category) %>%
+  summarize(Avg = mean(.value),
+            q25 = quantile(.value, prob = .25),
+            q75 = quantile(.value, prob = .75))
+```
 
 
 Posterior predictive counts match the observed counts.
