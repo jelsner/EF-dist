@@ -398,6 +398,17 @@ fit1_out <- predict(fit1, probs = c(0, 1))
 fit1.df <- posterior_samples(fit1)
 ```
 
+Posterior predictive counts match the observed counts.
+```{r}
+predicted <- df2 %>%
+  data_grid(Yrs = 0, dists = 0, CAPEs = 0, HLCYs = 0,  BSs = 0, id = NA, mo = NA) %>%
+  add_predicted_draws(fit1) 
+
+table(df2$maxEF1)/nrow(df2)
+table(predicted$.prediction)/nrow(predicted)
+```
+
+
 Extracting and visualizing tidy draws from brms models. https://cran.r-project.org/web/packages/tidybayes/vignettes/tidy-brms.html
 ```{r}
 library(tidybayes)
@@ -773,18 +784,6 @@ out %>%
   summarize(Avg = mean(.value),
             q25 = quantile(.value, prob = .25),
             q75 = quantile(.value, prob = .75))
-```
-
-
-Posterior predictive counts match the observed counts.
-```{r}
-predicted <- df2 %>%
-  data_grid(Yrs = 0, dists = 0, CAPEs = 0, HLCYs = 0,  BSs = 0, id = NA, mo = NA) %>%
-  add_predicted_draws(fit1) 
-
-table(df2$maxEF1)/nrow(df2)
-table(predicted$.prediction)/nrow(predicted)
-
 ```
 
 ```{r}
