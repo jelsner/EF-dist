@@ -70,7 +70,7 @@ tm_layout(title = "April 26, 1994", title.bg.color = "white")
 ```
 ### Figure: Locations of tornadoes (origin) during one convective-day cluster used in this study.
 
-Distribution of tornado groups by month.
+Distribution of tornado clusters by month.
 ```{r}
 ggplot(BigDays.sfdfT, aes(x = as.factor(Month))) +
   geom_bar(fill = "gray70") +
@@ -146,7 +146,7 @@ library(rethinking)
 
 ### Describing the ordered distribution of maximum EF ratings with intercepts
 
-We begin with a histogram of maximum EF rating per tornado. We need the `BigDaysInLargeGroups.RData` file to get all tornadoes. When we load this the file `BigDays.sfdfT` is now only days within a large group.
+We begin with a histogram of maximum EF rating per tornado. We need the `All_Tornadoes` data frame for comparing with all tornadoes.
 ```{r}
 df2 <- df %>%
   mutate(maxEF = as.integer(mag)) %>%
@@ -162,10 +162,10 @@ ggplot(plot.df, aes(x = EF, y = Frequency)) +
   theme_minimal()
 
 table(df2$maxEF)/dim(df2)[1]
-load("~/Desktop/Projects/EF-dist/BigDaysInLargeGroups.RData") # Note the file BigDays.sfdfT now is only days within a large group
+#load("~/Desktop/Projects/EF-dist/BigDaysInLargeGroups.RData") # Note the file BigDays.sfdfT now is only days within a large group
 table(All_Tornadoes$mag)/nrow(All_Tornadoes)
 ```
-### Figure: Histogram of tornadoes by maximum EF rating. Only tornadoes occurring in big convective-day groups are considered (see text).
+### Figure: Histogram of tornadoes by maximum EF rating. Only tornadoes occurring on big convective-day groups are considered (see text).
 
 As expected the histogram by EF rating on large cluster days shows that the vast majority of tornadoes are rated EF0 or EF1 with far fewer rated EF4 or EF5. But relative to all tornadoes the distribution favors higher ratings. For example, 3.5\% of big outbreak day tornadoes are rated EF3 compared with 2.3\% of all tornadoes. And .08\% of big outbreak day tornadoes are rated EF5 compared with .05\% of all tornadoes. 
 
@@ -263,7 +263,7 @@ The Ordered distribution is a categorical distribution that takes a vector $p = 
 
 ### Adding a predictor variable
 
-To include predictor variables, we define the log-cumulative-odds of each EF rating $k$ as a sum of its intercept $\alpha_k$ and a typical linear model. Suppose for  example we want to add a predictor $x$ to the model. We do this by defining a linear model $\phi_i = \beta x_i$. Then each cumulative logit becomes
+To include predictor variables, we define the log-cumulative-odds of each EF rating $k$ as a sum of its intercept $\alpha_k$ and a typical linear model. Suppose for example we want to add a predictor $x$ to the model. We do this by defining a linear model $\phi_i = \beta x_i$. Then each cumulative logit becomes
 $$
 \begin{aligned}
 \log \frac{\Pr(y_i \le k)}{1 - \Pr(y_i \le k)} &= \alpha_k - \phi_i \\
@@ -281,7 +281,7 @@ where Year_i indicates the year of tornado i and D_i indicates the distance of t
 
 Create scaled predictor variables. Remove ID = 200305302651. maxHLCY is unrealistically large.
 ```{r}
-df2 <- df2[df2$ID != 200305302651, ]
+#df2 <- df2[df2$ID != 200305302651, ]
 
 df2$Yrs <- scale(df2$Year)
 df2$dists <- scale(df2$dist)
@@ -306,7 +306,7 @@ The final number of tornadoes modeled is 16483 across 741 groups.
 
 ### Mixed effects model
 
-Group number indexed from 1 to number of groups.
+Cluster number indexed from 1 to number of clusters.
 ```{r}
 nT <- as.vector(table(df2$ID))
 id <- rep(1:length(nT), times = nT)
@@ -357,7 +357,7 @@ family <- brms::cumulative(threshold = "flexible")
 formula <- maxEF1 ~ Yrs + dists + CAPEs + HLCYs + BSs + (1|mo) + (1|id)
 #formulaA <- maxEF1 ~ dists + BSs + (BSs|id) 
 
-get_prior(formulaA, data = df2, family = family)
+get_prior(formula, data = df2, family = family)
 
 prior2 <- brm(formula = formula,
            data = df2,
@@ -383,15 +383,15 @@ fit1 <- brm(formula = formula,
             family = family,
             prior = c(set_prior("normal(0, 1)", class = "b"),
                      set_prior("student_t(3, 0, 10)", class = "Intercept"),
-                     set_prior("student_t(3, 0, 10)", class = "sd"),
-                     set_prior("lkj(1)", class = "cor")),
+                     set_prior("student_t(3, 0, 10)", class = "sd")),
+#                     set_prior("lkj(1)", class = "cor")),
            control = list(max_treedepth = 15),
            seed = 78121)
 
 fixef(fit1)
 
-#save(fit1, file = "fit1.RData")
-#load("fit1.RData")
+#save(fit1, file = "fit1new.RData")
+load("fit1new.RData")
 fit1_out <- predict(fit1, probs = c(0, 1))
 # stancode(fit1)
 
@@ -437,7 +437,7 @@ Add a plot. Fixed effects. Highest density interval.
 Plot monthly random effects.
 ```{r}
 fit1 %>%
-  gather_draws(r_mo[1, Intercept]) %>%
+  gather_draws(r_mo[2, Intercept]) %>%
   median_hdi()
 
 ( p2 <- fit1 %>%
@@ -594,7 +594,8 @@ gg <- marginal_effects(fit1, effects = "Yrs", categorical = TRUE,
                        conditions = data.frame(dists = c(-1.2, 7.4), BSs = 0, CAPEs = 0, HLCYs = 0))
 ggYr <- gg[[1]] %>%
   mutate(ef = as.integer(cats__)) %>%
-  filter(ef <= 3)
+#  filter(ef <= 3)
+  filter(ef > 3)
 levels(ggYr$cats__) <- c("0", "1", "2", "3", "4", "5")
 
 Yrs <- scale(df2$Year)
@@ -614,7 +615,7 @@ ggYr$CityRural <- rep(rep(c("Within a City or Town", "In a Remote Area"), each =
               alpha = .7, col = NA) +
   scale_color_brewer(name = "", label = c("EF0", "EF1", "EF2", "EF3", "EF4", "EF5"), palette = "Reds") +
   scale_fill_brewer(name = "", label = c("EF0", "EF1", "EF2", "EF3", "EF4", "EF5"), palette = "Reds") +
-  scale_y_continuous(limits = c(0, 1)) +
+#  scale_y_continuous(limits = c(0, 1)) +
   scale_x_continuous(breaks = seq(1995, 2015, by = 5)) +
     facet_wrap(~ CityRural) +
 #    facet_wrap(~ CityRural, labeller = labeller(dists = supp.labs)) +
