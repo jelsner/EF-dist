@@ -28,10 +28,8 @@ library(ggplot2)
 Load the data.
 ```{r}
 load("~/Desktop/Projects/EF-dist/BigDays.RData")
-#load("~/Desktop/Projects/EF-dist/Climatology.RData")
+Torn.sfT <- BigDayTornadoes
 st_crs(Torn.sfT)
-#st_crs(BigDayTornadoes)
-#Torn.sfT <- BigDayTornadoes
 st_crs(BigDays.sfdfT)
 ```
 
@@ -99,12 +97,6 @@ ggplot(BigDays.sfdfT, aes(x = as.factor(Month))) +
 #    ggtitle(label = "Monthly Frequency of Convective-Day Groups",
 #            subtitle = "For Groups With At Least Ten Tornadoes (1994-2017)") +
   theme_minimal() )
-
-#ggplot(BigDays.sfdfT, aes(x = nT)) +
-#  geom_histogram(fill = "gray70", binwidth = 5) +
-#  scale_y_continuous(limits = c(0, NA)) +
-#  ylab("Number of Groups") + xlab("Number of Tornadoes") +
-#  theme_minimal() 
 ```
 ### Figure: Monthly frequency of convective-day groups for groups with at least ten tornadoes (1994--2017).
 
