@@ -1,19 +1,11 @@
 ---
-title: "Tornado damage rating probabilities estimated with cumulative logistic regression"
+title: "Tornado damage rating estimated with cumulative logistic regression"
 author: "James Elsner"
 date: "2/14/2019"
 output: github_notebook
 editor_options:
   chunk_output_type: console
 ---
-Abstract for the European SLS conference in Krakow, POLAND, 4-8 November 2019.
-
-Abstract Deadline: April 24, 2019
-Submission link: https://meetings.copernicus.org/ecss2019/abstract_management/
-
-Tornado damage rating probabilities estimated with cumulative logistic regression
-
-Elsner/Schroder
 
 _Journal of Applied Meteorology and Climatology_
 
@@ -25,7 +17,7 @@ library(dplyr)
 library(ggplot2)
 ```
 
-Load the data.
+Load the data. The data were organized by Zoe Schroder in the github repo _defineBigDays_.
 ```{r}
 load("~/Desktop/Projects/EF-dist/BigDays.RData")
 Torn.sfT <- BigDayTornadoes
@@ -33,9 +25,9 @@ st_crs(Torn.sfT)
 st_crs(BigDays.sfdfT)
 ```
 
-The simple feature `BigDays.sfdfT` contains group-level data including environmental variables. The simple feature `Torn.sfT` contains tornado-level data for all tornadoes on the big days. Note: they have different CRSs.
+The simple feature `BigDays.sfdfT` contains cluster-level data including environmental variables. The simple feature `Torn.sfT` contains tornado-level data for all tornadoes on the big days. Note: they have different CRSs.
 
-A single group can be across more than one calendar day. And there can be more than one group on a convective day. ID provides a unique label for the date and group number.
+A single cluster can be across more than one calendar day. And there can be more than one cluster on a convective day. ID provides a unique label for the date and cluster number (`groupNumber`).
 ```{r}
 dim(BigDays.sfdfT)
 length(unique(BigDays.sfdfT$ID))
@@ -43,7 +35,7 @@ length(unique(BigDays.sfdfT$groupNumber))
 length(unique(BigDays.sfdfT$cDate))
 ```
 
-A map of one convective-day group used in this study.
+A map of one convective-day cluster used in this study.
 ```{r}
 library(USAboundaries)
 ```
@@ -76,7 +68,7 @@ tm_compass(position = c("left", "bottom"), color.dark = "gray70") +
 tm_scale_bar(position = c("left", "bottom"), color.dark = "gray70") +
 tm_layout(title = "April 26, 1994", title.bg.color = "white")
 ```
-### Figure: Locations of tornadoes (origin) during one convective-day group used in this study.
+### Figure: Locations of tornadoes (origin) during one convective-day cluster used in this study.
 
 Distribution of tornado groups by month.
 ```{r}
@@ -98,13 +90,11 @@ ggplot(BigDays.sfdfT, aes(x = as.factor(Month))) +
 #            subtitle = "For Groups With At Least Ten Tornadoes (1994-2017)") +
   theme_minimal() )
 ```
-### Figure: Monthly frequency of convective-day groups for groups with at least ten tornadoes (1994--2017).
+### Figure: Monthly frequency of convective-day cluster for clusters with at least ten tornadoes (1994--2017).
 
-We join the environmental variables at the group-level with the data at the tornado level.
+We join the environmental variables at the cluster-level with the data at the tornado level. Given a cluster of at least ten tornadoes within a single convective 24-hour period (12 UTC to 12 UTC), we extract environmental variables from the North American Regional Reanalysis (NARR) obtained from the the National Center for Atmospheric Research (NCAR). Variables are available on a 32.4 km grid and represent of a blend of model and observational sounding data.
 
-Given a group of at least ten tornadoes within a single convective 24-hour period (12 UTC to 12 UTC), we extract environmental variables from the North American Regional Reanalysis (NARR) obtained from the the National Center for Atmospheric Research (NCAR). Variables are available on a 32.4 km grid and represent of a blend of model and observational sounding data.
-
-We use the 3-hourly files that contain environmental data for each day ranging from 0Z to 21Z in 3-hour increments. For each tornado group, we calculate the closest 3-hour time before the occurrence of the first tornado. We pick a time before the event starts because we want to sample the pre-storm environment. We use tornado groups occurring between January 1994 and December 2017 resulting in a total of 16,504 tornadoes in 742 groups.
+We use the 3-hourly files that contain environmental data for each day ranging from 0Z to 21Z in 3-hour increments. For each tornado cluster, we calculate the closest 3-hour time before the occurrence of the first tornado. We pick a time before the event starts because we want to sample the pre-storm environment. We use tornado clusters occurring between January 1994 and December 2017 resulting in a total of 16,501 tornadoes in 742 clusters.
 ```{r}
 df <- as.data.frame(BigDays.sfdfT) %>%
   select(ID, maxCAPE, maxHLCY, minCIN, maxBS, maxSM) %>%
