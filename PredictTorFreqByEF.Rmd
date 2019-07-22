@@ -404,6 +404,11 @@ predicted <- df2 %>%
   data_grid(Yrs = 0, dists = 0, CAPEs = 0, HLCYs = 0,  BSs = 0, id = NA, mo = NA) %>%
   add_predicted_draws(fit1) 
 
+# Didn't run but should
+predicted <- df2 %>%
+  dplyr::select(Yrs, dists, CAPEs, HLCYs, BSs, id, mo) %>%
+  add_predicted_draws(fit1)
+
 table(df2$maxEF1)/nrow(df2)
 table(predicted$.prediction)/nrow(predicted)
 ```
