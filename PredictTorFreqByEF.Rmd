@@ -44,6 +44,10 @@ library(USAboundaries)
 ctys <- us_counties()
 sts1 <- us_states(states = c("IL", "IN", "KY", "MO", "KS",
                              "OK", "AR", "TN", "MS", "TX"))
+stsLabel <- us_states(states = c("IL", "IN", "KY", "MO", "KS",
+                                 "OK", "AR", "TN", "MS", "TX",
+                                 "IA", "CO", "LA", "AL", "GA", 
+                                 "FL", "OH"))
 sts <- us_states()
 
 IDno <- 1994042653
@@ -59,14 +63,15 @@ tm_shape(sts1, is.master = TRUE) +
   tm_borders() +
 tm_shape(sts) +
   tm_borders(col = "gray90") +
-  tm_text("name", size = .6, remove.overlap = TRUE, col = "gray80") +
+tm_shape(stsLabel) + 
+  tm_text("name", size = .6, remove.overlap = TRUE, col = "gray60") +
 tm_shape(BD) +
   tm_polygons(col = "gray80", alpha = .3) +
 tm_shape(BDt) +
   tm_dots(size = .3, alpha = .3) +
 tm_compass(position = c("left", "bottom"), color.dark = "gray70") +
 tm_scale_bar(position = c("left", "bottom"), color.dark = "gray70") +
-tm_layout(title = "April 26, 1994", title.bg.color = "white")
+tm_layout(title = "26 April 1994", title.bg.color = "white")
 ```
 ### Figure: Locations of tornadoes (origin) during one convective-day cluster used in this study.
 
@@ -157,6 +162,7 @@ names(plot.df) <- c("EF", "Frequency")
 
 ggplot(plot.df, aes(x = EF, y = Frequency)) + 
   geom_point() + 
+  geom_text(aes(label = Frequency), nudge_y = 250) +
   geom_segment(aes(xend = EF, yend = 0)) +
   xlab("Maximum EF Rating") +
   theme_minimal()
@@ -349,7 +355,7 @@ Since there are a lot of tornadoes, the posterior for each intercept is quite pr
 logistic(fixef(fit0))
 ```
 
-These are the same (nearly) as the values in `cum_pr_k` that we computed above. But now we also have a posterior distribution around these values, and we’re ready to add predictor variables to the model.
+These are the same (nearly) as the values in `cum_pr_k_train` that we computed above. But now we also have a posterior distribution around these values, and we’re ready to add predictor variables to the model.
 
 Model with predictors. Start with some default priors (for example `"normal(0,5)"` for the `class = "b"`). Sample from the priors and check the predictive distribution of the response. Adjust the priors accordingly. https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations
 ```{r}
@@ -405,6 +411,7 @@ predicted <- df2 %>%
   add_predicted_draws(fit1) 
 
 # Didn't run but should
+library(tidybayes)
 predicted <- df2 %>%
   dplyr::select(Yrs, dists, CAPEs, HLCYs, BSs, id, mo) %>%
   add_predicted_draws(fit1)
